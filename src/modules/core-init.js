@@ -2,7 +2,7 @@
 import { hookChatInput, printChat } from './commands.js';
 import { MOD_VER, modApi, setModApi } from './config.js';
 import { _depthTimer, applyDepthLoop, hookGhostDraw, setDepthTimer } from './depth.js';
-import { hookDrawCharacter, hookOrgasmStage } from './hooks.js';
+import { hookAtmosphere, hookDrawCharacter, hookOrgasmStage } from './hooks.js';
 import { ensureI18n, ui } from './i18n.js';
 import { _domObserver, removePanel, setDomObserver, setupDOMObserver } from './panel.js';
 import { hookProfileButton, hookRemoteEdit, registerPreferenceScreen } from './profile.js';
@@ -144,6 +144,7 @@ import { clearBCXCache } from './util.js';
 
         hookDrawCharacter();
         hookGhostDraw();
+        hookAtmosphere();      // 催眠模糊/染色（BC 原生繪圖）
         hookOrgasmStage();
         hookProfileButton();
         hookRemoteEdit();

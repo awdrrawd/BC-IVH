@@ -1,4 +1,5 @@
 // ── auto-wired cross-module imports ──
+import { ivhBlurLevel, ivhTintColor } from './atmosphere.js';
 import { CONFIG, modApi } from './config.js';
 import { triggerPinkFlash } from './effects.js';
 import { triggerClimaxEffect } from './effects2.js';
@@ -51,6 +52,33 @@ import { effectScale } from './util.js';
             });
         } catch (e) {
             console.warn('🐈‍⬛ [IVH] ⚠️ ChatRoomCharacterViewDrawOverlay hook 失敗:', e.message);
+        }
+    }
+
+    // ════════════════════════════════════════
+    //  催眠氛圍 hook：模糊 + 淡紫染色（用 BC 原生繪圖管線）
+    //   - Player.GetBlurLevel → BC 會據此模糊「其他角色＋房間背景」，玩家自己不受影響
+    //   - Player.HasTints/GetTints → 同理對世界疊一層淡紫
+    //  只在催眠氛圍啟用時疊加（見 atmosphere.js），平時完全 next(args) 不影響原值。
+    // ════════════════════════════════════════
+    function hookAtmosphere() {
+        if (!modApi) return;
+        try {
+            modApi.hookFunction('Player.GetBlurLevel', 4, (args, next) => {
+                const base = next(args) || 0;
+                const add = ivhBlurLevel();
+                return add > base ? add : base;
+            });
+            modApi.hookFunction('Player.HasTints', 4, (args, next) => {
+                return ivhTintColor() ? true : next(args);
+            });
+            modApi.hookFunction('Player.GetTints', 4, (args, next) => {
+                const base = next(args) || [];
+                const t = ivhTintColor();
+                return t ? base.concat([t]) : base;
+            });
+        } catch (e) {
+            console.warn('🐈‍⬛ [IVH] 氛圍 hook 失敗:', e.message);
         }
     }
 
@@ -126,6 +154,7 @@ import { effectScale } from './util.js';
 
 export {
     hookDrawCharacter,
+    hookAtmosphere,
     hookOrgasmStage,
     _hookOrgasmPoll,
 };

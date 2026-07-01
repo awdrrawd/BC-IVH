@@ -1,6 +1,7 @@
 // ── auto-wired cross-module imports ──
 import { printChat } from './commands.js';
 import { CONFIG } from './config.js';
+import { assetUrl } from './icons.js';
 import { EXT } from './preference.js';
 import { IVHDB, saveSettings } from './storage.js';
 import { T } from './util.js';
@@ -16,7 +17,9 @@ import { T } from './util.js';
     //  載入失敗 → 本地聊天訊息提示（10秒後自動消失）
     //  音源來自 https://www.pincree.jp/
     // ════════════════════════════════════════
-    const SND_BASE = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Sound/IVH/';
+    // 音源自我裝載：與 bundle 同源（正式站 = BC-IVH Pages，本地 = vite preview）。
+    // 檔案放 Sound/，build 前由 copy-assets 複製到 public/Sound/ 一併部署。
+    const SND_BASE = assetUrl('Sound/');
 
     // 內建音效庫（唯一一份；「其他」可從這裡挑選，依類別分組）
     const SOUND_PRESETS = [

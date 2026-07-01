@@ -1,6 +1,7 @@
 // ── auto-wired cross-module imports ──
 import { CONFIG } from './config.js';
 import { runEffect } from './run.js';
+import { IVH_Z } from './zlayers.js';
 
 // ════════════════════════════════════════
 //  IVH module: util.js
@@ -172,7 +173,7 @@ import { runEffect } from './run.js';
                 width:         '100%',
                 height:        '100%',
                 pointerEvents: 'none',
-                zIndex:        '99999',
+                zIndex:        IVH_Z.overlay,
                 overflow:      'hidden',
             });
             document.body.appendChild(overlay);

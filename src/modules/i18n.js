@@ -1,5 +1,6 @@
 // ── auto-wired cross-module imports ──
 import { CONFIG } from './config.js';
+import { assetUrl } from './icons.js';
 
 // ════════════════════════════════════════
 //  IVH module: i18n.js
@@ -11,11 +12,16 @@ import { CONFIG } from './config.js';
     //  引擎未就緒時，ui() 回傳 fallbacks[key]（中文原文），不丟例外
     // ════════════════════════════════════════
     const I18N_NS = 'IVH';
-    const LIKO_I18N_ENGINE_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/Liko-i18n.js';
-    const LIKO_IVH_STRINGS_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/IVH-i18n.js';
+    // 翻譯自我裝載：與 bundle 同源（正式站 = BC-IVH Pages，本地 = vite preview）。
+    //  Liko-i18n.js 是共用引擎（有防重複載入），IVH-i18n.js 是本插件字庫；
+    //  兩者放 Translation/，build 前由 copy-assets 複製到 public/Translation/ 一併部署。
+    const LIKO_I18N_ENGINE_URL = assetUrl('Translation/Liko-i18n.js');
+    const LIKO_IVH_STRINGS_URL = assetUrl('Translation/IVH-i18n.js');
 
+    // 加時間戳避免 CDN 快取到舊字庫（翻譯會經常修改）
     function _i18nLoadScript(url) {
-        return fetch(url)
+        const u = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+        return fetch(u)
             .then(res => { if (!res.ok) throw new Error(`[IVH] 無法載入 ${url} (${res.status})`); return res.text(); })
             .then(code => { new Function(code)(); });
     }

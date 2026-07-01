@@ -3,11 +3,12 @@ import { startOtherPant } from './character-fx.js';
 import { printChat } from './commands.js';
 import { CONFIG, ES_KEY, PREF_ID, modApi } from './config.js';
 import { ui } from './i18n.js';
-import { ivhIconFor } from './icons.js';
+import { IVH_ICON_B, IVH_ICON_W, ivhIconForTheme, ivhThemeIsDark } from './icons.js';
 import { _mkBtn, resolveWhitelistNumbers } from './panel.js';
 import { EXT, waitForPreference } from './preference.js';
 import { publishSharedSettings, saveSettings } from './storage.js';
 import { isZh } from './util.js';
+import { IVH_Z } from './zlayers.js';
 
 // ════════════════════════════════════════
 //  IVH module: profile.js
@@ -84,7 +85,13 @@ import { isZh } from './util.js';
                     const can = _permFor(C, info), canEdit = can.catalyst || can.status || can.trigger;
                     const tip = canEdit ? ui('profileEditBtn')
                         : (info.edit ? ui('profileEditNoPerm') : ui('profileEditOff'));
-                    DrawButton(1700, 75, 90, 90, '', canEdit ? 'White' : '#ccc', ivhIconFor(canEdit ? 'White' : '#ccc'), tip, !canEdit);
+                    // 依當前 UI 主題深淺自動切換：暗底用深色鈕+白線稿(B)，亮底用白鈕+深線稿(W)
+                    const darkBg = ivhThemeIsDark();
+                    const btnColor = darkBg ? (canEdit ? '#2b2b2b' : '#555') : (canEdit ? 'White' : '#ccc');
+                    // DrawButton 內部 DrawImage 是「原尺寸」不縮放，圖檔是 1311×1311 會爆框；
+                    // 改成先畫無圖按鈕、再用 DrawImageResize 把圖示縮到 90×90 框內（留 2px 邊）
+                    DrawButton(1700, 75, 90, 90, '', btnColor, '', tip, !canEdit);
+                    DrawImageResize(darkBg ? IVH_ICON_B : IVH_ICON_W, 1702, 77, 86, 86);
                 }
                 return r;
             });
@@ -264,7 +271,7 @@ import { isZh } from './util.js';
             width: '470px', maxHeight: '88vh', overflowY: 'auto',
             background: 'linear-gradient(135deg,rgba(30,10,40,0.98),rgba(50,15,60,0.98))',
             border: '1px solid rgba(255,120,200,0.45)', borderRadius: '12px', padding: '16px',
-            zIndex: '100000', fontFamily: '"Noto Sans TC","Microsoft JhengHei",sans-serif', color: '#ffddee',
+            zIndex: IVH_Z.dialog, fontFamily: '"Noto Sans TC","Microsoft JhengHei",sans-serif', color: '#ffddee',
             boxShadow: '0 8px 40px rgba(180,60,160,0.4)',
         });
         const title = document.createElement('div');
@@ -340,7 +347,7 @@ import { isZh } from './util.js';
             position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
             width: '400px', background: 'linear-gradient(135deg,rgba(30,10,40,0.98),rgba(50,15,60,0.98))',
             border: '1px solid rgba(255,120,200,0.45)', borderRadius: '12px', padding: '22px',
-            zIndex: '100001', fontFamily: '"Noto Sans TC","Microsoft JhengHei",sans-serif', color: '#ffddee',
+            zIndex: IVH_Z.dialog, fontFamily: '"Noto Sans TC","Microsoft JhengHei",sans-serif', color: '#ffddee',
             boxShadow: '0 8px 40px rgba(180,60,160,0.4)', textAlign: 'center',
         });
         const msg = document.createElement('div');
@@ -366,8 +373,8 @@ import { isZh } from './util.js';
                 PreferenceRegisterExtensionSetting({
                     Identifier: PREF_ID,
                     ButtonText: isZh() ? 'IVH 催眠設定' : 'IVH Settings',
-                    // 偏好頁擴充按鈕為淺色底 → 用白底圖示（W）
-                    Image: ivhIconFor('White'),
+                    // 依當前主題深淺自動選圖（BC 開啟擴充設定選單時呼叫一次）
+                    Image: () => ivhIconForTheme(),
                     load:   () => EXT.load(),
                     run:    () => EXT.run(),
                     click:  () => EXT.click(),

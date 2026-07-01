@@ -26,16 +26,20 @@ npm run lint     # ESLint（no-undef 會抓出漏掉的跨模組 import）
 loader.user.js          # 正式載入器（GitHub Pages）
 loader.local.user.js    # 本地開發載入器（vite preview:5174）
 vite.config.js          # 打包設定（單檔 inlineDynamicImports；__IVH_VERSION__ define）
-public/                 # 隨 bundle 部署的素材（icon 等），部署後與 assets/ 同層
-  IVH-iconW.png         #   淺色底按鈕用（W）
-  IVH-iconB.png         #   深色底按鈕用（B）
+# 素材來源（build 前由 scripts/copy-assets.mjs 複製到 public/，自我裝載、隨 Pages 部署）
+Images/                 # 圖源（icon 主檔；build 複製 IVH-icon*.png 到 public/）
+Sound/                  # 音源（.mp3）；執行期由 bundle 同源抓（BC-IVH Pages）
+Translation/            # i18n：Liko-i18n.js（共用引擎，有防重載）+ IVH-i18n.js（本插件字庫）
+public/                 # ← 由上面三者自動產生，已 gitignore；vite 部署到 Pages
 src/
   main.js               # 進入點：設定 window.Liko.IVHApi、呼叫 initialize()
   modules/
     config.js           # 版本/共用可變狀態（CONFIG、modApi…）+ setter、預設值
-    i18n.js             # 多語（沿用共用 Liko-i18n 引擎，字庫 fallback 內建）
+    i18n.js             # 多語（引擎+字庫皆自我裝載自 BC-IVH，繁中 fallback 內建）
     storage.js          # ExtensionSettings / OnlineSharedSettings / IndexedDB / 匯入匯出
-    icons.js            # 依按鈕背景色挑 IVH-iconW / IVH-iconB
+    icons.js            # 讀主題色(--tmd-element)/取樣畫布，自動挑 IVH-iconW / IVH-iconB + 按鈕色
+    zlayers.js          # 集中的 z-index 分層表（上限 10，兩個堆疊環境）
+    atmosphere.js       # 催眠模糊/淡紫（hook Player.GetBlurLevel/GetTints，BC 原生）
     geometry.js         # 畫布座標、頭/嘴位置換算、快取
     util.js             # 興奮度、BCX 清單、文本工具、效果佇列、雜項
     effects.js          # 粉紅暈染/暗角/螺旋/電波/扭曲/校正
@@ -51,7 +55,6 @@ src/
     profile.js          # 角色資料頁 IVH 按鈕、遠端編輯、設定頁註冊
     styles.js           # CSS 動畫
     core-init.js        # 等待工具與 initialize()
-legacy/                 # 拆解前的單檔原始碼（保留供對照，不進 build）
 ```
 
 ### 模組化重點

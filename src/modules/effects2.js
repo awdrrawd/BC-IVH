@@ -5,6 +5,7 @@ import { wrapDanmakuText } from './effects.js';
 import { BASE_DANMAKU_DURATION, BODY_PANT_DY, DEPTH_PANT_EXTRA, _cachedScaleX, bcToScreen, getPlayerHeadScreenPos, getPlayerMouthScreenPos, playerDrawPos } from './geometry.js';
 import { playSoundCategory } from './sound.js';
 import { effectScale, getBCXReminderList, getChatHistoryLines, getOverlay, pickRandom, randInt, resolveMe } from './util.js';
+import { IVH_Z } from './zlayers.js';
 
 // ════════════════════════════════════════
 //  IVH module: effects2.js
@@ -220,7 +221,7 @@ import { effectScale, getBCXReminderList, getChatHistoryLines, getOverlay, pickR
                 transform:    'translate(-50%,-50%) scale(0.35)',
                 animation:    `ivhPant ${PUFF_DUR}ms ease-out forwards`,
                 willChange:   'transform, opacity',
-                zIndex:       '3',
+                zIndex:       IVH_Z.particle,
             });
             p.style.setProperty('--dx', `${dx.toFixed(1)}px`);
             p.style.setProperty('--dy', `${dy.toFixed(1)}px`);
@@ -277,7 +278,7 @@ import { effectScale, getBCXReminderList, getChatHistoryLines, getOverlay, pickR
             position:      'fixed',
             inset:         '0',
             background:    'black',
-            zIndex:        '99989',   // 在碎片(99991)下面，確保碎片飛散後看到黑
+            zIndex:        IVH_Z.climaxBg,   // 在碎片下面，確保碎片飛散後看到黑
             opacity:       '1',
             pointerEvents: 'none',
             transition:    'none',
@@ -289,7 +290,7 @@ import { effectScale, getBCXReminderList, getChatHistoryLines, getOverlay, pickR
         Object.assign(flash.style, {
             position:      'fixed',
             inset:         '0',
-            zIndex:        '99997',
+            zIndex:        IVH_Z.climaxFlash,
             opacity:       '0',
             pointerEvents: 'none',
             animation:     `ivhClimaxFlash ${Math.round(700 / scale)}ms ease-out forwards`,
@@ -365,7 +366,7 @@ import { effectScale, getBCXReminderList, getChatHistoryLines, getOverlay, pickR
                 width:           `${SW}px`,
                 height:          `${SH}px`,
                 pointerEvents:   'none',
-                zIndex:          '99991',
+                zIndex:          IVH_Z.climaxShards,
                 transformOrigin: `${seed.x}px ${seed.y}px`,
                 // transition 帶入 delay，飛散前靜止
                 transition:      `transform ${dur}ms cubic-bezier(0.15,0,0.9,1) ${scatter}ms,
@@ -389,7 +390,7 @@ import { effectScale, getBCXReminderList, getChatHistoryLines, getOverlay, pickR
             position:      'fixed',
             inset:         '0',
             pointerEvents: 'none',
-            zIndex:        '99999',
+            zIndex:        IVH_Z.climaxFlash,
             animation:     `ivhClimaxShake ${Math.round(500 / scale)}ms ease-out forwards`,
         });
         overlay.appendChild(shakeEl);

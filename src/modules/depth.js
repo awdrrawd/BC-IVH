@@ -1,4 +1,5 @@
 // ── auto-wired cross-module imports ──
+import { activateHypnoAtmosphere } from './atmosphere.js';
 import { popExprEffect, pushExprEffect, startChatFade } from './character-fx.js';
 import { CONFIG, EXPRESSION_SETS, modApi } from './config.js';
 import { triggerPinkFlash, wrapDanmakuText } from './effects.js';
@@ -6,6 +7,7 @@ import { triggerSteamParticles } from './effects2.js';
 import { _cachedRect, _cachedScaleX, _cachedScaleY, bcToScreen, getPlayerHeadScreenPos, playerDrawPos, refreshCanvasCache } from './geometry.js';
 import { playSoundCategory, triggerBreathSound } from './sound.js';
 import { getCatalystTexts, getChatHistoryLines, getOverlay, pickRandom, randInt, resolveMe } from './util.js';
+import { IVH_Z } from './zlayers.js';
 
 // ════════════════════════════════════════
 //  IVH module: depth.js
@@ -52,10 +54,13 @@ import { getCatalystTexts, getChatHistoryLines, getOverlay, pickRandom, randInt,
             if (L.chatDanmaku) depthChatDanmaku();
             if (L.ghost)       depthGhostWhisperer();
             if (L.pant)        pant = true;
-            // 中：左側人物模糊 / 音效 / 訊息浮現 / 中喘
+            // 中：世界模糊＋淡紫（BC 原生，自己與人影保持清晰）/ 音效 / 訊息浮現 / 中喘
             if (level >= 2) {
-                // 延後一點點再擷取，確保表情替換後的 Canvas 已重建
-                if (M.figureBlur) setTimeout(depthFigureBlur, 350);
+                if (M.figureBlur) {
+                    // 模糊強度隨催眠強度：約 2~4 px
+                    const blurLv = Math.max(2, Math.min(4, 2 + (CONFIG.intensity || 1)));
+                    activateHypnoAtmosphere(4300, { blur: true, tint: true, level: blurLv });
+                }
                 if (M.sfx && !playSoundCategory('depth', 0.7)) triggerBreathSound(1);
                 if (M.fade) startChatFade(10000);
                 if (M.pant) pant = true;
@@ -84,7 +89,7 @@ import { getCatalystTexts, getChatHistoryLines, getOverlay, pickRandom, randInt,
             textShadow: '0 0 10px rgba(255,105,180,0.7)',
             whiteSpace: 'pre-line', opacity: '0', pointerEvents: 'none',
             transform:  'translateY(8px)', transition: 'opacity .5s ease, transform .5s ease',
-            zIndex:     '5',   // 在模糊遮罩(1)、煙霧(3) 之上，避免被蓋住
+            zIndex:     IVH_Z.sceneText,   // 在模糊遮罩、煙霧之上，避免被蓋住
         });
         el.textContent = wrapDanmakuText(text, 12);
         overlay.appendChild(el);
@@ -103,7 +108,9 @@ import { getCatalystTexts, getChatHistoryLines, getOverlay, pickRandom, randInt,
     //  畫進 canvas（DrawCharacter hook，在玩家繪製前 → 真正在人物後方）。
     //  用 source-atop 壓暗（不透明，只是變暗），頭頂文字用 DOM。
     let _ghost = null;   // { canvas, offX, alpha } 由 DrawCharacter hook 讀取繪製
-    function depthGhostWhisperer() {
+    // durationMs：人影出現總時長（含淡入淡出）。預設對齊目前催眠時長；
+    //   未來長時間催眠只要傳更大的值，人影就跟隨更久。
+    function depthGhostWhisperer(durationMs = 4800) {
         if (!playerDrawPos.valid || !_cachedRect) return;
         // 隨機抽聊天室一名角色（含自己）當人影來源；抽不到就退回自己
         let srcChar = Player;
@@ -145,13 +152,15 @@ import { getCatalystTexts, getChatHistoryLines, getOverlay, pickRandom, randInt,
         _ghost = { char: ghostChar, canvas: fc, offXpx, offYpx, alpha: 0 };
 
         // 淡入 / 維持 / 淡出（DrawCharacter hook 每幀讀 alpha）
+        const D = Math.max(2500, durationMs);
+        const FADE_IN = 1000, FADE_OUT = 1300;
         const start = Date.now();
         const fade = () => {
             if (!_ghost) return;
             const t = Date.now() - start;
-            if      (t < 1000) _ghost.alpha = (t / 1000) * 0.92;
-            else if (t < 3500) _ghost.alpha = 0.92;
-            else if (t < 4800) _ghost.alpha = 0.92 * (1 - (t - 3500) / 1300);
+            if      (t < FADE_IN)        _ghost.alpha = (t / FADE_IN) * 0.92;
+            else if (t < D - FADE_OUT)   _ghost.alpha = 0.92;
+            else if (t < D)              _ghost.alpha = 0.92 * (1 - (t - (D - FADE_OUT)) / FADE_OUT);
             else { _ghost = null; return; }
             requestAnimationFrame(fade);
         };
@@ -165,13 +174,13 @@ import { getCatalystTexts, getChatHistoryLines, getOverlay, pickRandom, randInt,
             transform: 'translateX(-50%)', fontSize: '20px', fontWeight: '600',
             fontFamily: '"Noto Sans TC", "Microsoft JhengHei", sans-serif', textAlign: 'center',
             color: 'rgba(255,220,240,0.92)', textShadow: '0 0 10px rgba(180,80,200,0.85)',
-            whiteSpace: 'pre-line', opacity: '0', transition: 'opacity 0.8s ease', pointerEvents: 'none', zIndex: '5',
+            whiteSpace: 'pre-line', opacity: '0', transition: 'opacity 0.8s ease', pointerEvents: 'none', zIndex: IVH_Z.sceneText,
         });
         txt.textContent = wrapDanmakuText(line, 12);
         getOverlay().appendChild(txt);
         requestAnimationFrame(() => { txt.style.opacity = '1'; });
-        setTimeout(() => { txt.style.opacity = '0'; }, 3500);
-        setTimeout(() => txt.remove(), 4800);
+        setTimeout(() => { txt.style.opacity = '0'; }, D - FADE_OUT);
+        setTimeout(() => txt.remove(), D);
     }
 
     // 在玩家繪製前把人影畫到 canvas（→ 在人物後方），用 BC 自己的 DrawCharacter 對齊位置
@@ -213,45 +222,6 @@ import { getCatalystTexts, getChatHistoryLines, getOverlay, pickRandom, randInt,
         }
     }
 
-    // ── 深度（中）：畫面模糊，但人物與背後人影清晰疊在最上層 ──
-    //  只做左側 1000×1000 模糊遮罩（不蓋到右側聊天室），再把清晰的人影＋人物畫上去
-    function depthFigureBlur() {
-        const canvas = document.getElementById('MainCanvas') || document.querySelector('canvas');
-        if (!canvas) return;
-        const REG = 1000;   // 左側人物區（BC 像素 0~1000）
-        let url;
-        try {
-            const comp = document.createElement('canvas'); comp.width = REG; comp.height = REG;
-            const cx = comp.getContext('2d');
-            // 1. 模糊左側區
-            cx.filter = 'blur(7px)'; cx.drawImage(canvas, 0, 0, REG, REG, 0, 0, REG, REG); cx.filter = 'none';
-            // 2. 用 BC 自己的 DrawCharacter 把清晰的玩家（與人影）畫進來 → 位置完全正確
-            const pd = _playerDraw;
-            if (pd) {
-                // 人影 alpha 暫時拉滿，讓它在這張靜態合成圖上清楚可見
-                let savedA;
-                if (_ghost) { savedA = _ghost.alpha; _ghost.alpha = Math.max(_ghost.alpha || 0, 0.85); }
-                DrawCharacter(Player, pd.x, pd.y, pd.zoom, undefined, cx);  // hook 會先畫人影、再畫玩家
-                if (_ghost) _ghost.alpha = savedA;
-            }
-            url = comp.toDataURL();
-        } catch (e) { return; }
-
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = rect.width / 2000, scaleY = rect.height / 1000;
-        const img = document.createElement('img');
-        img.src = url;
-        Object.assign(img.style, {
-            position: 'fixed', left: `${rect.left}px`, top: `${rect.top}px`,
-            width: `${REG * scaleX}px`, height: `${REG * scaleY}px`,   // 只佔左側 1000 區
-            opacity: '0', transition: 'opacity 1s ease', pointerEvents: 'none', zIndex: '1',
-        });
-        getOverlay().appendChild(img);
-        requestAnimationFrame(() => { img.style.opacity = '1'; });
-        setTimeout(() => { img.style.opacity = '0'; }, 3200);
-        setTimeout(() => img.remove(), 4300);
-    }
-
     // ── 深度（重）：右側聊天訊息突然模糊化 ──
     function depthChatlogBlur() {
         const log = document.getElementById('TextAreaChatLog');
@@ -275,6 +245,5 @@ export {
     depthChatDanmaku,
     depthGhostWhisperer,
     hookGhostDraw,
-    depthFigureBlur,
     depthChatlogBlur,
 };

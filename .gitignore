@@ -1,4 +1,6 @@
 node_modules/
 dist/
+# public/ 由 scripts/copy-assets.mjs 於 build 前從 Images/ Sound/ Translation/ 產生
+public/
 *.log
 .DS_Store

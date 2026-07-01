@@ -3,6 +3,7 @@ import { CONFIG } from './config.js';
 import { _emitBreathPuff, breathIntervalMs } from './effects2.js';
 import { BODY_PANT_DY, _cachedRect, _cachedScaleX, _charDrawPos, bcToScreen, otherCharMouthScreenPos, refreshCanvasCache } from './geometry.js';
 import { getOverlay, randInt } from './util.js';
+import { IVH_Z } from './zlayers.js';
 
 // ════════════════════════════════════════
 //  IVH module: character-fx.js
@@ -285,7 +286,7 @@ function addArousal() {
                 borderRadius:  '50%',
                 objectFit:     'cover',
                 pointerEvents: 'none',
-                zIndex:        '1',       // 頭像層：煙霧(3) > 螺旋(2) > 頭像(1) > 其它特效(auto)
+                zIndex:        IVH_Z.base, // 頭像層：煙霧 > 螺旋 > 頭像 > 其它特效(auto)
                 boxShadow:     '0 0 40px rgba(255,80,160,0.5)',
                 opacity:       '0',
                 transition:    'opacity 1.5s ease',

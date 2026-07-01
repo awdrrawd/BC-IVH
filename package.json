@@ -5,11 +5,11 @@
   "type": "module",
   "description": "Liko - IVH (Immersive Voice Hypnosis) for Bondage Club",
   "scripts": {
-    "predev": "node scripts/sync-version.mjs",
+    "predev": "node scripts/sync-version.mjs && node scripts/copy-assets.mjs",
     "dev": "vite build && concurrently -k -n build,serve \"vite build --watch\" \"vite preview --port 5174\"",
     "preview": "vite preview --port 5174",
     "sync-version": "node scripts/sync-version.mjs",
-    "prebuild": "node scripts/sync-version.mjs",
+    "prebuild": "node scripts/sync-version.mjs && node scripts/copy-assets.mjs",
     "build": "vite build",
     "lint": "eslint ."
   },

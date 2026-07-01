@@ -3,6 +3,7 @@ import { printChat } from './commands.js';
 import { CONFIG } from './config.js';
 import { BASE_PINK_DURATION, BASE_WAVE_DURATION, HEAD_OFFSET, SPIRAL_DURATION, VIGNETTE_DURATION, bcToScreen, getPlayerHeadScreenPos, refreshCanvasCache } from './geometry.js';
 import { effectScale, getOverlay, randInt } from './util.js';
+import { IVH_Z } from './zlayers.js';
 
 // ════════════════════════════════════════
 //  IVH module: effects.js
@@ -70,7 +71,7 @@ import { effectScale, getOverlay, randInt } from './util.js';
             pointerEvents: 'none',
             opacity:       '0',
             transition:    'opacity 0.4s ease',
-            zIndex:        '2',   // 螺旋在頭像(1)之上、煙霧(3)之下
+            zIndex:        IVH_Z.spiral,   // 螺旋在頭像之上、煙霧之下
         });
 
         // SVG 螺旋（阿基米德螺旋線，用多圈弧段組成）
@@ -224,7 +225,7 @@ import { effectScale, getOverlay, randInt } from './util.js';
             width:           `${rect.width}px`,
             height:          `${rect.height}px`,
             pointerEvents:   'none',
-            zIndex:          '99990',  // canvas 上，但在 overlay 文字效果下
+            zIndex:          IVH_Z.distortSnap,  // canvas 上，但在 overlay 文字效果下
             transformOrigin: '50% 50%',
             willChange:      'transform, filter, opacity',
         });
@@ -282,7 +283,7 @@ import { effectScale, getOverlay, randInt } from './util.js';
             borderRadius: '50%',
             background:   'rgba(255,0,0,0.8)',
             border:       '2px solid white',
-            zIndex:       '999999',
+            zIndex:       IVH_Z.tool,
             pointerEvents:'none',
         });
         document.body.appendChild(dot);
@@ -310,7 +311,7 @@ import { effectScale, getOverlay, randInt } from './util.js';
             border:      '1px solid rgba(255,100,200,0.4)',
             borderRadius:'10px',
             padding:     '12px',
-            zIndex:      '999999',
+            zIndex:      IVH_Z.tool,
             fontFamily:  'monospace',
             fontSize:    '12px',
             color:       '#ffccee',
@@ -374,7 +375,7 @@ import { effectScale, getOverlay, randInt } from './util.js';
                 borderRadius: '50%',
                 background:   'rgba(255,0,80,0.85)',
                 border:       '2px solid white',
-                zIndex:       '999998',
+                zIndex:       IVH_Z.tool,
                 pointerEvents:'none',
                 boxShadow:    '0 0 10px rgba(255,0,80,0.6)',
             });

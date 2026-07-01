@@ -7,6 +7,7 @@ import { WL_TOKENS } from './panel.js';
 import { ivhConfirm } from './profile.js';
 import { SOUND_DEFAULTS, SOUND_PRESETS, _sndNameCache, deleteLocalSound, playSoundEntry, uploadSoundFile } from './sound.js';
 import { IVHDB, exportSettings, importSettings, publishSharedSettings, saveSettings } from './storage.js';
+import { IVH_Z } from './zlayers.js';
 
 // ════════════════════════════════════════
 //  IVH module: preference.js
@@ -242,7 +243,7 @@ import { IVHDB, exportSettings, importSettings, publishSharedSettings, saveSetti
             if (!this._demoEl) {
                 const el = document.createElement('div');
                 Object.assign(el.style, {
-                    position: 'fixed', zIndex: '9999', pointerEvents: 'none',
+                    position: 'fixed', zIndex: IVH_Z.prefInput, pointerEvents: 'none',
                     overflow: 'hidden', borderRadius: '8px',
                     background: 'rgba(10,0,18,0.6)',
                     display: 'none',
@@ -439,7 +440,7 @@ import { IVHDB, exportSettings, importSettings, publishSharedSettings, saveSetti
                 el = document.createElement(opts.multiline ? 'textarea' : 'input');
                 if (!opts.multiline) el.type = opts.type || 'text';
                 Object.assign(el.style, {
-                    position: 'fixed', zIndex: '10000', boxSizing: 'border-box',
+                    position: 'fixed', zIndex: IVH_Z.prefInput, boxSizing: 'border-box',
                     background: '#301B3D', color: '#ffeeff',
                     border: '1px solid #b060c0', borderRadius: '4px',
                     padding: '2px 6px', fontFamily: 'monospace', outline: 'none',
@@ -476,7 +477,7 @@ import { IVHDB, exportSettings, importSettings, publishSharedSettings, saveSetti
             if (!el) {
                 el = document.createElement('select');
                 Object.assign(el.style, {
-                    position: 'fixed', zIndex: '10000', boxSizing: 'border-box',
+                    position: 'fixed', zIndex: IVH_Z.prefInput, boxSizing: 'border-box',
                     background: '#8E44A1', color: '#ffffff',
                     border: '1px solid #b060c0', borderRadius: '4px',
                     padding: '2px 6px', fontFamily: 'sans-serif', outline: 'none', cursor: 'pointer',
