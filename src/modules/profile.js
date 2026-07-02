@@ -39,7 +39,7 @@ import { IVH_Z } from './zlayers.js';
     }
     function _viewerCanEditAny(info) {
         const modes = _viewerEditModes(info);
-        return ['catalyst', 'status', 'trigger'].some(k => _viewerCanEdit(info, modes[k]));
+        return ['catalyst', 'status', 'trigger', 'wake', 'response', 'allowed'].some(k => _viewerCanEdit(info, modes[k]));
     }
 
     // ── 即時權限詢問：開對方 profile 時直接問對方「我能編輯哪些」，對方即時回覆 ──
@@ -63,15 +63,33 @@ import { IVH_Z } from './zlayers.js';
         const pc = _permCache[C.MemberNumber];
         if (pc && (Date.now() - pc.ts < 60000)) return pc.can;
         const modes = _viewerEditModes(info);
-        return { catalyst: _viewerCanEdit(info, modes.catalyst), status: _viewerCanEdit(info, modes.status), trigger: _viewerCanEdit(info, modes.trigger) };
+        return { catalyst: _viewerCanEdit(info, modes.catalyst), status: _viewerCanEdit(info, modes.status), trigger: _viewerCanEdit(info, modes.trigger), wake: _viewerCanEdit(info, modes.wake), response: _viewerCanEdit(info, modes.response), allowed: _viewerCanEdit(info, modes.allowed) };
+    }
+
+    // 其他插件是否正在全螢幕子頁（BCX / LSCG / MPA）→ 我們就不畫按鈕、也不接管，讓路給它們
+    function _otherModSubscreenOpen() {
+        try { if (window.bcx && typeof window.bcx.inBcxSubscreen === 'function' && window.bcx.inBcxSubscreen()) return true; } catch (e) {}
+        try { if (window.LSCG_REMOTE_WINDOW_OPEN) return true; } catch (e) {}
+        try { if (window.MPA && window.MPA.menuLoaded) return true; } catch (e) {}
+        return false;
     }
 
     function hookProfileButton() {
         if (!modApi) return;
         try {
-            // 優先權需高於 UBC(4)：UBC 在 altchsh 模式會 return 不呼叫 next()，吃掉低優先 hook
-            modApi.hookFunction('InformationSheetRun', 10, (args, next) => {
+            // 優先權拉高（>LSCG 的 11、UBC 的 4）：remote 頁開啟時 return 不呼叫 next，
+            // 讓其它插件的按鈕/子頁完全不繪製，避免蓋在我們的設定頁上。
+            const SHEET_PRIO = 100;
+            modApi.hookFunction('InformationSheetRun', SHEET_PRIO, (args, next) => {
+                // remote 設定頁開啟 → 就地接管整個畫面（不繪製 profile 本體、也不跑其它 hook）
+                if (EXT.ctx === 'remote' && EXT.remote) {
+                    const prevAlign = MainCanvas.textAlign;
+                    try { EXT.run(); } catch (e) {}
+                    MainCanvas.textAlign = prevAlign;
+                    return;   // 不呼叫 next → profile 與其它插件都不繪製
+                }
                 const r = next(args);
+                if (_otherModSubscreenOpen()) return r;   // 別的插件全螢幕子頁 → 不畫我們的按鈕
                 const C = _sheetChar();
                 const info = C && _isOther(C) && C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY];
                 if (info) {
@@ -82,7 +100,7 @@ import { IVH_Z } from './zlayers.js';
                     const fresh = reopened || C.MemberNumber !== _permViewing;
                     if (fresh) _permViewing = C.MemberNumber;
                     _queryPerm(C.MemberNumber, fresh);
-                    const can = _permFor(C, info), canEdit = can.catalyst || can.status || can.trigger;
+                    const can = _permFor(C, info), canEdit = can.catalyst || can.status || can.trigger || can.wake || can.response || can.allowed;
                     const tip = canEdit ? ui('profileEditBtn')
                         : (info.edit ? ui('profileEditNoPerm') : ui('profileEditOff'));
                     // 依當前 UI 主題深淺自動切換：暗底用深色鈕+白線稿(B)，亮底用白鈕+深線稿(W)
@@ -95,14 +113,25 @@ import { IVH_Z } from './zlayers.js';
                 }
                 return r;
             });
-            modApi.hookFunction('InformationSheetClick', 10, (args, next) => {
+            modApi.hookFunction('InformationSheetClick', SHEET_PRIO, (args, next) => {
+                // remote 設定頁開啟 → 點擊交給 EXT（分頁/離開/存檔）
+                if (EXT.ctx === 'remote' && EXT.remote) { try { EXT.click(); } catch (e) {} return; }
+                if (_otherModSubscreenOpen()) return next(args);   // 讓路給別的插件
                 const C = _sheetChar();
                 const info = C && _isOther(C) && C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY];
                 if (info && MouseIn(1700, 75, 90, 90)) {
                     const can = _permFor(C, info);
-                    if (can.catalyst || can.status || can.trigger) openRemoteTextEditor(C);
+                    if (can.catalyst || can.status || can.trigger || can.wake || can.response || can.allowed) {
+                        try { if (typeof InformationSheetUnload === 'function') InformationSheetUnload(); } catch (e) {}  // 清掉 profile 的 DOM 元素
+                        openRemoteSettings(C);
+                    }
                     return;   // 吃掉此點擊，避免落到 UBC 的同位置按鈕
                 }
+                return next(args);
+            });
+            // 離開 profile（Esc / BC 離開流程）→ 若 remote 設定頁開著，先關掉它、留在 profile
+            modApi.hookFunction('InformationSheetExit', SHEET_PRIO, (args, next) => {
+                if (EXT.ctx === 'remote' && EXT.remote) { try { EXT.closeRemote(); } catch (e) {} return; }
                 return next(args);
             });
         } catch (e) {
@@ -124,13 +153,16 @@ import { IVH_Z } from './zlayers.js';
                             const sender = Number(data.Sender), em = CONFIG.editModes || {};
                             const wl = resolveWhitelistNumbers();
                             const can = m => m === 'any' || (m === 'whitelist' && wl.has(sender));
-                            const cc = can(em.catalyst), cs = can(em.status), ct = can(em.trigger);
+                            const cc = can(em.catalyst), cs = can(em.status), ct = can(em.trigger), cw = can(em.wake), cr = can(em.response), ca = can(em.allowed);
                             if (typeof ServerSend === 'function')
                                 ServerSend('ChatRoomChat', { Type: 'Hidden', Content: 'IVH_PermReply', Dictionary: [{
-                                    Tag: 'IVH_PermReply', Target: sender, cc, cs, ct,
+                                    Tag: 'IVH_PermReply', Target: sender, cc, cs, ct, cw, cr, ca,
                                     texts:    cc ? (CONFIG.customTexts || [])  : [],
                                     emotes:   cs ? (CONFIG.emoteList || [])    : [],
                                     triggers: ct ? (CONFIG.triggerWords || []) : [],
+                                    wake:     cw ? [CONFIG.wakeWord || '']     : [],
+                                    response: cr ? (CONFIG.responseList || []) : [],
+                                    allowed:  ca ? (CONFIG.allowedPhrases || []) : [],
                                 }] });
                         }
                     } catch (e) {}
@@ -155,10 +187,13 @@ import { IVH_Z } from './zlayers.js';
                         const d = (data.Dictionary || []).find(x => x && x.Tag === 'IVH_PermReply');
                         if (d && Number(d.Target) === Player?.MemberNumber) {
                             _permCache[Number(data.Sender)] = {
-                                can: { catalyst: !!d.cc, status: !!d.cs, trigger: !!d.ct },
+                                can: { catalyst: !!d.cc, status: !!d.cs, trigger: !!d.ct, wake: !!d.cw, response: !!d.cr, allowed: !!d.ca },
                                 texts: Array.isArray(d.texts) ? d.texts : [],
                                 emotes: Array.isArray(d.emotes) ? d.emotes : [],
                                 triggers: Array.isArray(d.triggers) ? d.triggers : [],
+                                wake: Array.isArray(d.wake) ? d.wake : [],
+                                response: Array.isArray(d.response) ? d.response : [],
+                                allowed: Array.isArray(d.allowed) ? d.allowed : [],
                                 ts: Date.now(),
                             };
                         }
@@ -186,11 +221,14 @@ import { IVH_Z } from './zlayers.js';
                         const clean = arr => arr.map(s => String(s).trim()).filter(Boolean).slice(0, 200);
                         if (dict && dict.Target === Player.MemberNumber) {
                             // 是否「有提交但因權限被拒」（用來回報「不在白名單」）
-                            const tried = Array.isArray(dict.Texts) || Array.isArray(dict.Emotes) || Array.isArray(dict.Triggers);
+                            const tried = ['Texts', 'Emotes', 'Triggers', 'Wake', 'Response', 'Allowed'].some(k => Array.isArray(dict[k]));
                             let changed = false;
-                            if (Array.isArray(dict.Texts)    && okFor(em.catalyst)) { CONFIG.customTexts  = clean(dict.Texts);    changed = true; }
-                            if (Array.isArray(dict.Emotes)   && okFor(em.status))   { CONFIG.emoteList    = clean(dict.Emotes);   changed = true; }
-                            if (Array.isArray(dict.Triggers) && okFor(em.trigger))  { CONFIG.triggerWords = clean(dict.Triggers); changed = true; }
+                            if (Array.isArray(dict.Texts)    && okFor(em.catalyst)) { CONFIG.customTexts    = clean(dict.Texts);    changed = true; }
+                            if (Array.isArray(dict.Emotes)   && okFor(em.status))   { CONFIG.emoteList      = clean(dict.Emotes);   changed = true; }
+                            if (Array.isArray(dict.Triggers) && okFor(em.trigger))  { CONFIG.triggerWords   = clean(dict.Triggers); changed = true; }
+                            if (Array.isArray(dict.Wake)     && okFor(em.wake))     { CONFIG.wakeWord       = clean(dict.Wake)[0] || ''; changed = true; }
+                            if (Array.isArray(dict.Response) && okFor(em.response)) { CONFIG.responseList   = clean(dict.Response); changed = true; }
+                            if (Array.isArray(dict.Allowed)  && okFor(em.allowed))  { CONFIG.allowedPhrases = clean(dict.Allowed);  changed = true; }
                             if (changed) {
                                 saveSettings(true);
                                 publishSharedSettings();
@@ -231,12 +269,10 @@ import { IVH_Z } from './zlayers.js';
         }
     }
 
-    // 遠端文本編輯面板（DOM）
-    let _remoteEditor = null;
+    // 遠端訪問：就地開啟「文本設定」頁（沿用 EXT 設定頁繪製、就地接管 profile，非 DOM 彈窗）
     const _accessNotifyTs = {};
-    function openRemoteTextEditor(C) {
-        if (_remoteEditor) { _remoteEditor.remove(); _remoteEditor = null; }
-        // 訪問通知：打開對方文本編輯器時，通知對方「有人正在查看你的文本」（節流 15 秒）
+    function openRemoteSettings(C) {
+        // 訪問通知：通知對方「有人正在查看你的文本」（節流 15 秒）
         try {
             const num = C.MemberNumber, now = Date.now();
             if (num != null && (!_accessNotifyTs[num] || now - _accessNotifyTs[num] > 15000)) {
@@ -248,93 +284,39 @@ import { IVH_Z } from './zlayers.js';
             }
         } catch (e) {}
         const info  = (C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY]) || {};
-        // 相容舊版（只公告單一 editMode + texts）：視為催眠文本可編輯
         const modes = _viewerEditModes(info);
         const name  = (typeof CharacterNickname === 'function' ? CharacterNickname(C) : '') || C.Name || C.MemberNumber;
         // 即時回覆優先（_permCache），否則退回公告快照
         const pc = _permCache[C.MemberNumber];
         const canCat = k => pc ? !!pc.can[k] : _viewerCanEdit(info, modes[k]);
-        const dataCat = (k, field) => ((pc ? pc[field] : info[field]) || []);
+        const dataCat = (k, field) => ((pc ? pc[field] : info[field]) || []).slice();
 
-        // 對方各類允許編輯的分類（off 的不顯示）；editable=我是否真的可編輯（白名單外→唯讀加遮罩）
+        // 對方各類允許編輯的分類（off 的不顯示）；editable=我是否真能編輯（否則唯讀）
         const cats = [
-            { key: 'catalyst', dictKey: 'Texts',    field: 'texts',    label: ui('sec_hypnoText')    },
-            { key: 'status',   dictKey: 'Emotes',   field: 'emotes',   label: ui('sec_statusMsg')    },
-            { key: 'trigger',  dictKey: 'Triggers', field: 'triggers', label: ui('sec_triggerWords') },
+            { key: 'catalyst', dictKey: 'Texts',    field: 'texts',    label: ui('sec_hypnoText')     },
+            { key: 'status',   dictKey: 'Emotes',   field: 'emotes',   label: ui('sec_statusMsg')     },
+            { key: 'trigger',  dictKey: 'Triggers', field: 'triggers', label: ui('sec_triggerWords')  },
+            { key: 'wake',     dictKey: 'Wake',     field: 'wake',     label: ui('sec_wakeWord')      },
+            { key: 'response', dictKey: 'Response', field: 'response', label: ui('sec_hypnoResponse') },
+            { key: 'allowed',  dictKey: 'Allowed',  field: 'allowed',  label: ui('allowedPhrasesLabel') },
         ].filter(c => (modes[c.key] || 'off') !== 'off')
          .map(c => ({ ...c, editable: canCat(c.key), data: dataCat(c.key, c.field) }));
 
-        const panel = document.createElement('div');
-        _remoteEditor = panel;
-        Object.assign(panel.style, {
-            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-            width: '470px', maxHeight: '88vh', overflowY: 'auto',
-            background: 'linear-gradient(135deg,rgba(30,10,40,0.98),rgba(50,15,60,0.98))',
-            border: '1px solid rgba(255,120,200,0.45)', borderRadius: '12px', padding: '16px',
-            zIndex: IVH_Z.dialog, fontFamily: '"Noto Sans TC","Microsoft JhengHei",sans-serif', color: '#ffddee',
-            boxShadow: '0 8px 40px rgba(180,60,160,0.4)',
+        // 就地開啟 EXT「文本」分頁（remote 模式）；存檔即送出隱藏訊息給對方
+        EXT.openRemote({
+            C, name, cats,
+            onSave: (savedCats) => {
+                const dict = { Tag: 'IVH_SetTexts', Target: C.MemberNumber };
+                savedCats.forEach(c => {
+                    if (!c.editable) return;   // 無權限類別不送
+                    dict[c.dictKey] = (c.data || []).map(s => String(s).trim()).filter(Boolean).slice(0, 200);
+                });
+                try {
+                    ServerSend('ChatRoomChat', { Type: 'Hidden', Content: 'IVH_SetTexts', Dictionary: [dict] });
+                    printChat(ui('remoteEditSent', { name }), 6000);
+                } catch (e) {}
+            },
         });
-        const title = document.createElement('div');
-        title.innerHTML = `🌀 ${ui('remoteEditTitle', { name: `<b style="color:#ff99dd">${name}</b>` })}`;
-        title.style.cssText = 'font-size:15px;margin-bottom:6px';
-        const hint = document.createElement('div');
-        hint.textContent = ui('remoteEditHint');
-        hint.style.cssText = 'font-size:11px;color:#cc99bb;margin-bottom:10px';
-        panel.append(title, hint);
-
-        // 每類一個區塊 + textarea（無權限 → 唯讀並蓋上遮罩）
-        const tas = {};
-        cats.forEach(c => {
-            const lbl = document.createElement('div');
-            lbl.textContent = c.label + (c.editable ? '' : ' 🔒');
-            lbl.style.cssText = 'font-size:13px;font-weight:600;color:#ffbbe0;margin:8px 0 4px';
-            const wrap = document.createElement('div');
-            wrap.style.cssText = 'position:relative';
-            const ta = document.createElement('textarea');
-            ta.value = (c.data || []).join('\n');
-            ta.addEventListener('keydown', e => e.stopPropagation());
-            Object.assign(ta.style, {
-                width: '100%', height: '120px', boxSizing: 'border-box', resize: 'vertical',
-                background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,120,200,0.3)',
-                borderRadius: '6px', color: '#ffeeff', padding: '8px', fontFamily: 'monospace', fontSize: '13px', outline: 'none',
-            });
-            wrap.append(ta);
-            if (!c.editable) {
-                ta.readOnly = true;
-                ta.style.opacity = '0.45';
-                ta.style.cursor = 'not-allowed';
-                const mask = document.createElement('div');
-                mask.textContent = '🔒 ' + ui('remoteEditNoPerm');
-                mask.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(20,5,30,0.55);color:#ffaabb;font-size:13px;border-radius:6px;pointer-events:none;text-align:center;padding:0 8px';
-                wrap.append(mask);
-            }
-            tas[c.key] = { ta, dictKey: c.dictKey, editable: c.editable };
-            panel.append(lbl, wrap);
-        });
-
-        const row = document.createElement('div');
-        row.style.cssText = 'display:flex;gap:12px;margin-top:14px;justify-content:flex-end';
-        const bigBtn = 'font-size:16px;padding:10px 22px;border-radius:8px;font-weight:600';
-        const cancel = _mkBtn(ui('cancel'), '#4a2030', '#ffaabb', () => { panel.remove(); _remoteEditor = null; });
-        cancel.style.cssText += ';' + bigBtn;
-        const save   = _mkBtn(ui('remoteEditSave'), '#872626', '#aaffaa', () => {
-            const dict = { Tag: 'IVH_SetTexts', Target: C.MemberNumber };
-            for (const k in tas) {
-                if (!tas[k].editable) continue;   // 無權限的類別不送出
-                dict[tas[k].dictKey] = tas[k].ta.value.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 200);
-            }
-            try {
-                ServerSend('ChatRoomChat', { Type: 'Hidden', Content: 'IVH_SetTexts', Dictionary: [dict] });
-                printChat(ui('remoteEditSent', { name }), 6000);
-            } catch (e) {}
-            panel.remove(); _remoteEditor = null;
-        });
-        save.style.cssText += ';' + bigBtn;
-        row.append(cancel, save);
-        panel.append(row);
-        document.body.appendChild(panel);
-        const firstEditable = cats.find(c => c.editable);
-        if (firstEditable && tas[firstEditable.key]) tas[firstEditable.key].ta.focus();
     }
 
     // 自繪二次確認框（不用瀏覽器 confirm，避免部分平台彈不出來）
@@ -398,7 +380,7 @@ export {
     _permFor,
     hookProfileButton,
     hookRemoteEdit,
-    openRemoteTextEditor,
+    openRemoteSettings,
     ivhConfirm,
     registerPreferenceScreen,
 };

@@ -29,14 +29,19 @@ import { IVH_Z } from './zlayers.js';
         });
     }
 
-    // 分頁定義（key 對應繪製函式）
+    // 分頁定義（key 對應繪製函式 _run_<key>）
+    //  self   = 在「個人設定」（偏好頁）出現
+    //  remote = 在「訪問別人」（profile 就地設定頁）出現
+    //  remotePerm(remote) = 訪問模式下，依權限決定此分頁是否顯示（回傳 false 則隱藏）
+    //  之後要擴充別人可遠端設定的項目，只要在此新增分頁並標 remote:true 即可。
     const IVH_TABS = [
-        { key: 'basic',   label: () => ui('tab_basic')   },
-        { key: 'effects', label: () => ui('tab_effects') },
-        { key: 'texts',   label: () => ui('tab_texts')   },
-        { key: 'expr',    label: () => ui('tab_expr')    },
-        { key: 'sounds',  label: () => ui('tab_sounds')  },
-        { key: 'about',   label: () => ui('tab_about')   },
+        { key: 'basic',   label: () => ui('tab_basic'),   self: true,  remote: false },
+        { key: 'effects', label: () => ui('tab_effects'), self: true,  remote: false },
+        { key: 'texts',   label: () => ui('tab_texts'),   self: true,  remote: true,
+          remotePerm: r => r && r.cats && r.cats.length > 0 },
+        { key: 'expr',    label: () => ui('tab_expr'),    self: true,  remote: false },
+        { key: 'sounds',  label: () => ui('tab_sounds'),  self: true,  remote: false },
+        { key: 'about',   label: () => ui('tab_about'),   self: true,  remote: false },
     ];
 
     // 內容框（中間區）與卷軸視窗
@@ -55,6 +60,32 @@ import { IVH_Z } from './zlayers.js';
         _drag: null,       // 滑桿拖曳中 {x,w,min,max,step,key,save}
         _inputs: {},       // DOM 輸入框 id -> element
         _inputsUsed: null, // 本幀用到的 input id
+
+        // ── 情境：'self'（個人偏好頁）/ 'remote'（就地訪問別人）──
+        ctx: 'self',
+        remote: null,      // remote 模式資料：{ C, name, cats:[{key,dictKey,editable,data:[]}], onSave, dirty }
+
+        // 目前情境下可見的分頁（remote 再過 remotePerm 權限）
+        _tabsFor() {
+            return IVH_TABS.filter(t => t[this.ctx] && (this.ctx !== 'remote' || !t.remotePerm || t.remotePerm(this.remote)));
+        },
+
+        // ── 就地開啟訪問別人的設定頁（由 profile 按鈕呼叫）──
+        openRemote(remoteData) {
+            this.ctx = 'remote';
+            this.remote = remoteData;
+            const tabs = this._tabsFor();
+            this.activeTab = tabs.length ? tabs[0].key : 'texts';
+            this.scroll = 0;
+            this.load();
+        },
+        closeRemote() {
+            this._cleanup();
+            this.ctx = 'self';
+            this.remote = null;
+            this.activeTab = 'basic';
+            this.scroll = 0;
+        },
 
         // ── 生命週期 ──
         load() {
@@ -173,18 +204,24 @@ import { IVH_Z } from './zlayers.js';
             this._mid = [];
             this._inputsUsed = new Set();
 
+            const remote = this.ctx === 'remote';
+            const tabs = this._tabsFor();
             // 標題 + 離開鈕
-            DrawText('Immersive Voice Hypnosis  v' + MOD_VER, 950, 110, 'Black', '');
+            DrawText(remote ? ui('remoteEditTitle', { name: this.remote?.name || '' })
+                            : 'Immersive Voice Hypnosis  v' + MOD_VER,
+                     950, 110, 'Black', '');
             DrawButton(1815, 75, 90, 90, '', 'White', 'Icons/Exit.png', ui('exit'));
 
-            // 左上「IVH 啟用」主開關
-            DrawButton(150, 230, 300, 50,
-                       CONFIG.enabled ? ui('enabledOn') : ui('enabledOff'),
-                       CONFIG.enabled ? '#8E44A1' : 'White', '', '', false);
-            if (MouseIn(150, 230, 300, 50)) this.hoverDesc = ui('enabledDesc');
+            // 左上「IVH 啟用」主開關（僅個人設定）
+            if (!remote) {
+                DrawButton(150, 230, 300, 50,
+                           CONFIG.enabled ? ui('enabledOn') : ui('enabledOff'),
+                           CONFIG.enabled ? '#8E44A1' : 'White', '', '', false);
+                if (MouseIn(150, 230, 300, 50)) this.hoverDesc = ui('enabledDesc');
+            }
 
-            // 左側分頁鈕
-            IVH_TABS.forEach((tab, i) => {
+            // 左側分頁鈕（依情境過濾）
+            tabs.forEach((tab, i) => {
                 const y = 330 + i * 95;
                 DrawButton(150, y, 300, 50, tab.label(),
                            this.activeTab === tab.key ? '#8E44A1' : 'White', '', '', false);
@@ -327,13 +364,19 @@ import { IVH_Z } from './zlayers.js';
         },
 
         click() {
-            if (MouseIn(1815, 75, 90, 90)) { if (typeof PreferenceExit === 'function') PreferenceExit(); return; }
-            if (MouseIn(150, 230, 300, 50)) { CONFIG.enabled = !CONFIG.enabled; saveSettings(); return; }
-            for (let i = 0; i < IVH_TABS.length; i++) {
+            const remote = this.ctx === 'remote';
+            const tabs = this._tabsFor();
+            if (MouseIn(1815, 75, 90, 90)) {
+                if (remote) this.closeRemote();
+                else if (typeof PreferenceExit === 'function') PreferenceExit();
+                return;
+            }
+            if (!remote && MouseIn(150, 230, 300, 50)) { CONFIG.enabled = !CONFIG.enabled; saveSettings(); return; }
+            for (let i = 0; i < tabs.length; i++) {
                 if (MouseIn(150, 330 + i * 95, 300, 50)) {
-                    if (this.activeTab !== IVH_TABS[i].key) {
+                    if (this.activeTab !== tabs[i].key) {
                         if (this.activeTab === 'expr') this._restoreExpr();  // 離開表情分頁還原
-                        this.activeTab = IVH_TABS[i].key; this.scroll = 0; this._rscroll = 0;
+                        this.activeTab = tabs[i].key; this.scroll = 0; this._rscroll = 0;
                     }
                     return;
                 }
@@ -447,7 +490,17 @@ import { IVH_Z } from './zlayers.js';
                     resize: 'none',
                 });
                 if (opts.placeholder) el.placeholder = opts.placeholder;
+                if (opts.readOnly) { el.readOnly = true; el.style.opacity = '0.55'; el.style.cursor = 'not-allowed'; }
                 el.addEventListener('keydown', ev => ev.stopPropagation());
+                // 滑鼠停在輸入框上時，若框本身不需捲動或已到邊界，把滾輪交給設定頁卷軸
+                el.addEventListener('wheel', (ev) => {
+                    const canScroll = el.scrollHeight > el.clientHeight + 1;
+                    const atTop = el.scrollTop <= 0, atBot = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+                    if ((!canScroll || (ev.deltaY < 0 && atTop) || (ev.deltaY > 0 && atBot)) && this._maxScroll > 0) {
+                        ev.preventDefault();
+                        this.scroll = Math.max(0, Math.min(this._maxScroll, this.scroll + (ev.deltaY > 0 ? 60 : -60)));
+                    }
+                }, { passive: false });
                 el.addEventListener('input',  () => { if (opts.onChange) opts.onChange(el.value); });
                 el.addEventListener('change', () => { if (opts.onChange) opts.onChange(el.value); });
                 el.addEventListener('blur',   () => { if (opts.onChange) opts.onChange(el.value); });
@@ -513,14 +566,6 @@ import { IVH_Z } from './zlayers.js';
         },
 
         // 深度效果層定義
-        _depthRows() {
-            return [
-                { tag: '輕', cfg: 'depthLight', items: [['smoke','煙霧'],['pant','喘氣'],['chatDanmaku','彈幕'],['ghost','人影']] },
-                { tag: '中', cfg: 'depthMed',   items: [['figureBlur','人物模糊'],['pant','喘氣'],['sfx','音效'],['fade','訊息浮現']] },
-                { tag: '重', cfg: 'depthHeavy', items: [['chatlogBlur','聊天模糊'],['pant','喘氣']] },
-            ];
-        },
-
         // ════════ 基本設定 ════════
         _run_basic() {
             const prev = MainCanvas.textAlign;
@@ -539,17 +584,45 @@ import { IVH_Z } from './zlayers.js';
             DrawText(CONFIG.intensity.toFixed(1), 1130, this._y(ty), 'Black', '');
             bottom = ty + TH;
 
-            // ── 群組 2：催眠深度 / 循環時間 / 深度輕中重 ──
-            // 催眠深度（toggle 在 ty-22、h45）：與上方 RED
+            const numRight = (v, ty2) => { const _p = MainCanvas.textAlign; MainCanvas.textAlign = 'left'; DrawText(String(v), 1130, this._y(ty2), 'Black', ''); MainCanvas.textAlign = _p; };
+
+            // ── 群組 2：興奮值（0~20）──
+            ty = bottom + RED + 17;
+            this.title(ty, ui('arousalStepLabel'), ui('arousalStepD'));
+            this.slider(700, ty - 17, 380, CONFIG.arousalStep, 0, 20, 1, ui('arousalStepD'),
+                v => { CONFIG.arousalStep = Math.round(v); }, () => saveSettings());
+            numRight(CONFIG.arousalStep, ty);
+            bottom = ty + TH;
+
+            // ── 群組 3：催眠值（側邊開/關 + 語音/深度兩個值）──
+            ty = bottom + RED + 22;
+            this.title(ty, ui('hypnoLabel'), ui('hypnoD'));
+            this.toggle(CTRL_X, ty - 20, 116, 40, CONFIG.hypnoEnabled ? ui('on') : ui('off'), CONFIG.hypnoEnabled, ui('hypnoD'),
+                () => { CONFIG.hypnoEnabled = !CONFIG.hypnoEnabled; saveSettings(); });
+            bottom = ty + 20;
+
+            ty = bottom + BLUE + 17;
+            this.title(ty, ui('hypnoVoiceLabel'), ui('hypnoVoiceD'));
+            this.slider(700, ty - 17, 380, CONFIG.hypnoVoiceStep, 0, 20, 1, ui('hypnoVoiceD'),
+                v => { CONFIG.hypnoVoiceStep = Math.round(v); }, () => saveSettings());
+            numRight(CONFIG.hypnoVoiceStep, ty);
+            bottom = ty + TH;
+
+            ty = bottom + BLUE + 17;
+            this.title(ty, ui('hypnoDepthLabel'), ui('hypnoDepthD'));
+            this.slider(700, ty - 17, 380, CONFIG.hypnoDepthStep, 0, 10, 1, ui('hypnoDepthD'),
+                v => { CONFIG.hypnoDepthStep = Math.round(v); }, () => saveSettings());
+            numRight(CONFIG.hypnoDepthStep, ty);
+            bottom = ty + TH;
+
+            // ── 群組 4：催眠深度（開/關 + 間隔 + 扁平效果自由勾選）──
             ty = bottom + RED + 22;
             this.title(ty, ui('depthMax'), ui('depthMaxD'));
-            [[0, ui('depthNone')], [1, ui('depthLight')], [2, ui('depthMed')], [3, ui('depthHeavy')]].forEach(([v, lb], i) => {
-                this.toggle(CTRL_X + i * 95, ty - 22, 90, 45, lb, CONFIG.depthMax === i, null,
-                    () => { CONFIG.depthMax = i; saveSettings(); applyDepthLoop(); });
-            });
-            bottom = ty + 23;
+            this.toggle(CTRL_X, ty - 20, 116, 40, CONFIG.depthEnabled ? ui('on') : ui('off'), CONFIG.depthEnabled, ui('depthMaxD'),
+                () => { CONFIG.depthEnabled = !CONFIG.depthEnabled; saveSettings(); applyDepthLoop(); });
+            bottom = ty + 20;
 
-            // 循環時間（input 在 ty-17、h42）：與上方 BLUE
+            // 循環時間
             ty = bottom + BLUE + 17;
             this.title(ty, ui('interval'), ui('intervalD'));
             this.input('ivh-interval', CTRL_X, ty - 17, 110, 42, String(CONFIG.depthIntervalMin),
@@ -565,26 +638,21 @@ import { IVH_Z } from './zlayers.js';
             }
             bottom = ty + 25;
 
-            // 深度效果列（toggle 在 cy、h40；列間 BLUE → pitch 45）：與上方 GREEN
+            // 扁平效果勾選（3 欄，自由勾選）
             const fxName = { smoke:'fx_smoke', pant:'fx_pant', chatDanmaku:'fx_danmaku', ghost:'fx_ghost',
                              figureBlur:'fx_figblur', sfx:'fx_sfx', chatlogBlur:'fx_chatblur', fade:'fx_fade' };
             const demoMap = { smoke:'pinkFlash', pant:'steamParticles', chatDanmaku:'danmaku',
                               ghost:'ghost', figureBlur:'figureBlur', chatlogBlur:'chatlogBlur', sfx:'sound', fade:'chatFade' };
-            const rowTags = ['depthRowLight', 'depthRowMed', 'depthRowHeavy'];
-            const FXP = 40 + BLUE;          // 深度效果列 pitch = 45
-            const dy = bottom + GREEN;      // 深度效果列起點
-            this._depthRows().forEach((row, ri) => {
-                const cy = dy + ri * FXP;
-                const prev2 = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
-                DrawTextFit(ui(rowTags[ri]), CONTENT_X, this._y(cy + 20), 100, 'Black', '');
-                MainCanvas.textAlign = prev2;
-                this._track(cy + 40);
-                row.items.forEach(([k], ci) => {
-                    this.toggle(CTRL_X + ci * 122, cy, 116, 40, ui(fxName[k]), !!CONFIG[row.cfg][k], ui(fxName[k] + 'D'),
-                        () => { CONFIG[row.cfg][k] = !CONFIG[row.cfg][k]; saveSettings(); }, demoMap[k]);
-                });
+            const dKeys = ['smoke','chatDanmaku','ghost','figureBlur','sfx','fade','chatlogBlur','pant'];
+            const DE = CONFIG.depthEffects || (CONFIG.depthEffects = {});
+            this.title(bottom + GREEN, ui('depthEffects'), ui('depthEffectsHint'));
+            const gy = bottom + GREEN + 32;
+            dKeys.forEach((k, i) => {
+                const cx = CTRL_X + (i % 3) * 122, cy = gy + Math.floor(i / 3) * 45;
+                this.toggle(cx, cy, 116, 40, ui(fxName[k]), !!DE[k], ui(fxName[k] + 'D'),
+                    () => { DE[k] = !DE[k]; saveSettings(); }, demoMap[k]);
             });
-            bottom = dy + 2 * FXP + 40;     // 深度重底
+            bottom = gy + Math.ceil(dKeys.length / 3) * 45;
 
             // ── 看到他人喘氣（放在深度與允許編輯之間；toggle 在 ty-22、h44；與上方 RED）──
             ty = bottom + RED + 22;
@@ -606,7 +674,7 @@ import { IVH_Z } from './zlayers.js';
             const COLS = [['off', ui('editOff')], ['whitelist', ui('whitelist')], ['any', ui('editAny')]];
             const CP = 44 + BLUE;           // 權限列 pitch = 49
             const cdy = bottom + GREEN;     // 三類列起點
-            [['catalyst', 'sec_hypnoText'], ['status', 'sec_statusMsg'], ['trigger', 'sec_triggerWords']].forEach(([cat, lbKey], ri) => {
+            [['catalyst', 'sec_hypnoText'], ['status', 'sec_statusMsg'], ['trigger', 'sec_triggerWords'], ['wake', 'sec_wakeWord'], ['response', 'sec_hypnoResponse'], ['allowed', 'allowedPhrasesLabel']].forEach(([cat, lbKey], ri) => {
                 const cy = cdy + ri * CP;
                 const p2 = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
                 DrawTextFit(ui(lbKey), CONTENT_X, this._y(cy + 30), 150, 'Black', '');
@@ -617,7 +685,7 @@ import { IVH_Z } from './zlayers.js';
                         () => setEdit(cat, m));
                 });
             });
-            bottom = cdy + 2 * CP + 44;     // 觸發詞列底
+            bottom = cdy + 5 * CP + 44;     // 6 類權限列底（catalyst/status/trigger/wake/response/allowed）
 
             // 白名單（input 在 ty-17、h42；與上方 RED）
             ty = bottom + RED + 17;
@@ -695,41 +763,81 @@ import { IVH_Z } from './zlayers.js';
 
         // ════════ 文本設定 ════════
         _run_texts() {
+            if (this.ctx === 'remote') return this._run_texts_remote();
             this._defaultDesc = ui('textsHint');   // 常駐說明
-            this.title(228, ui('tab_texts'), ui('textsHint'));
+            // 逐段往下排（title 佔 28、段間留 GAP），避免固定座標互相遮住
+            const GAP = 30;
+            let cy = 228;
+            this.title(cy, ui('tab_texts'), ui('textsHint')); cy += 42;
 
-            this.title(286, ui('sec_hypnoText'), ui('hypnoTextD'));
-            this.input('ivh-texts', 500, 314, 800, 150, (CONFIG.customTexts || []).join('\n'),
-                { multiline: true, placeholder: ui('hypnoTextPh'), onChange: val => {
-                    CONFIG.customTexts = val.split('\n').map(s => s.trim()).filter(Boolean);
-                    saveSettings();
-                }});
+            const seg = (labelKey, descKey, id, value, h, opts) => {
+                this.title(cy, ui(labelKey), ui(descKey));
+                this.input(id, 500, cy + 28, 800, h, value, opts);
+                cy += 28 + h + GAP;
+            };
+            seg('sec_hypnoText', 'hypnoTextD', 'ivh-texts', (CONFIG.customTexts || []).join('\n'), 130,
+                { multiline: true, placeholder: ui('hypnoTextPh'), onChange: val => { CONFIG.customTexts = val.split('\n').map(s => s.trim()).filter(Boolean); saveSettings(); } });
+            seg('sec_statusMsg', 'statusMsgD', 'ivh-emotes', (CONFIG.emoteList || []).join('\n'), 110,
+                { multiline: true, placeholder: ui('statusMsgPh'), onChange: val => { CONFIG.emoteList = val.split('\n').map(s => s.trim()).filter(Boolean); saveSettings(); } });
+            seg('sec_triggerWords', 'triggerWordsD', 'ivh-triggers', (CONFIG.triggerWords || []).join('\n'), 90,
+                { multiline: true, placeholder: ui('triggerWordsPh'), onChange: val => { CONFIG.triggerWords = val.split('\n').map(s => s.trim()).filter(Boolean); saveSettings(); } });
+            // 清醒詞（單行；房內任何人說出→立即清醒）
+            seg('sec_wakeWord', 'wakeWordD', 'ivh-wake', CONFIG.wakeWord || '', 44,
+                { placeholder: ui('wakeWordPh'), onChange: val => { CONFIG.wakeWord = val.trim(); saveSettings(); } });
+            // 催眠回應（強控中說話有機會被替換成其中一句）
+            seg('sec_hypnoResponse', 'hypnoResponseD', 'ivh-response', (CONFIG.responseList || []).join('\n'), 100,
+                { multiline: true, placeholder: ui('hypnoResponsePh'), onChange: val => { CONFIG.responseList = val.split('\n').map(s => s.trim()).filter(Boolean); saveSettings(); } });
+            // 允許說的話（強控中整句符合就照說、不陷入思考）
+            seg('allowedPhrasesLabel', 'allowedPhrasesD', 'ivh-allowed', (CONFIG.allowedPhrases || []).join('\n'), 100,
+                { multiline: true, placeholder: ui('allowedPhrasesPh'), onChange: val => { CONFIG.allowedPhrases = val.split('\n').map(s => s.trim()).filter(Boolean); saveSettings(); } });
 
-            this.title(496, ui('sec_statusMsg'), ui('statusMsgD'));
-            this.input('ivh-emotes', 500, 524, 800, 120, (CONFIG.emoteList || []).join('\n'),
-                { multiline: true, placeholder: ui('statusMsgPh'), onChange: val => {
-                    CONFIG.emoteList = val.split('\n').map(s => s.trim()).filter(Boolean);
-                    saveSettings();
-                }});
-
-            this.title(676, ui('sec_triggerWords'), ui('triggerWordsD'));
-            this.input('ivh-triggers', 500, 704, 800, 110, (CONFIG.triggerWords || []).join('\n'),
-                { multiline: true, placeholder: ui('triggerWordsPh'), onChange: val => {
-                    CONFIG.triggerWords = val.split('\n').map(s => s.trim()).filter(Boolean);
-                    saveSettings();
-                }});
-            this._track(825);
-
-            // 還原預設（把三類文本重設為「目前語言」的預設；靠右）
-            this.btn(1120, 826, 180, 46, ui('restoreDefault'), '#8C6046', ui('textsResetD'),
-                () => ivhConfirm(ui('confirmTextsReset'), () => {
-                    CONFIG.customTexts  = ui('defaultTexts').split('\n').map(s => s.trim()).filter(Boolean);
-                    CONFIG.emoteList    = ui('defaultEmotes').split('\n').map(s => s.trim()).filter(Boolean);
-                    CONFIG.triggerWords = [];
-                    try { document.activeElement && document.activeElement.blur(); } catch {}
-                    saveSettings(); publishSharedSettings();
-                }));
-            this._track(882);
+            this._track(cy + 20);   // 底部留白
+        },
+        // 文本設定右側：說明照畫在說明框；還原預設放「內容框右上角」（不在說明位、固定不捲動）
+        _right_texts() {
+            const desc = this.hoverDesc || this._defaultDesc;
+            if (desc) DrawTextWrap(desc, 1370, 260, 510, 540, 'Black', undefined, 6);
+            if (this.ctx !== 'remote')
+                this.rbtn(1090, 186, 200, 48, ui('restoreDefault'), '#8C6046', ui('textsResetD'), () => this._resetTexts());
+        },
+        _resetTexts() {
+            ivhConfirm(ui('confirmTextsReset'), () => {
+                CONFIG.customTexts   = ui('defaultTexts').split('\n').map(s => s.trim()).filter(Boolean);
+                CONFIG.emoteList     = ui('defaultEmotes').split('\n').map(s => s.trim()).filter(Boolean);
+                CONFIG.triggerWords  = [];
+                CONFIG.responseList  = ui('defaultResponses').split('\n').map(s => s.trim()).filter(Boolean);
+                try { document.activeElement && document.activeElement.blur(); } catch {}
+                saveSettings(); publishSharedSettings();
+            });
+        },
+        // ════════ 文本設定（訪問別人：就地編輯，依權限唯讀/可編輯，儲存即送出）════════
+        _run_texts_remote() {
+            const r = this.remote;
+            if (!r) { this.closeRemote(); return; }
+            this._defaultDesc = ui('remoteEditHint');
+            this.title(228, ui('tab_texts'), ui('remoteEditHint'));
+            let cy = 286;
+            r.cats.forEach(c => {
+                this.title(cy, c.label + (c.editable ? '' : ' 🔒'), c.editable ? '' : ui('profileEditNoPerm'));
+                this.input('ivh-rtext-' + c.key, 500, cy + 30, 800, 120, (c.data || []).join('\n'),
+                    { multiline: true, readOnly: !c.editable,
+                      placeholder: c.editable ? ui('hypnoTextPh') : '',
+                      onChange: c.editable
+                          ? (val => { c.data = val.split('\n').map(s => s.trim()).filter(Boolean); r.dirty = true; })
+                          : null });
+                cy += 178;
+            });
+            this._track(cy);
+            // 儲存並送出（僅在有可編輯分類時顯示）
+            if (r.cats.some(c => c.editable)) {
+                this.btn(500, cy + 6, 320, 50, ui('remoteEditSave'), '#21872F', '',
+                    () => {
+                        try { document.activeElement && document.activeElement.blur(); } catch {}
+                        try { r.onSave && r.onSave(r.cats); } catch (e) {}
+                        this.closeRemote();
+                    });
+                this._track(cy + 60);
+            }
         },
         // ════════ 表情設定（最多 10 組）════════
         //  右側為一個「工作中表情」編輯區；點名稱→載入右側；點某列「保存」→把右側內容存到那一組

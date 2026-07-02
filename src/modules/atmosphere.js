@@ -1,3 +1,6 @@
+// ── auto-wired cross-module imports ──
+import { isForced } from './hypno.js';
+
 // ════════════════════════════════════════
 //  IVH module: atmosphere.js
 //  催眠氛圍：模糊 + 淡紫染色。改用 BC 原生繪圖管線（hook Player.GetBlurLevel /
@@ -42,14 +45,18 @@ function _factor() {
 
 // 給 hook Player.GetBlurLevel 用：回傳目前該疊加的模糊 px（0 = 不模糊）
 export function ivhBlurLevel() {
-    if (!CONFIG.enabled || _blurMax <= 0 || !_allowBlur()) return 0;
+    if (!CONFIG.enabled || !_allowBlur()) return 0;
+    if (isForced()) return 3;            // 催眠值強控中：持續模糊
+    if (_blurMax <= 0) return 0;
     const f = _factor();
     return f > 0 ? +(_blurMax * f).toFixed(2) : 0;
 }
 
 // 給 hook Player.GetTints 用：回傳目前的淡紫染色（null = 不染）
 export function ivhTintColor() {
-    if (!CONFIG.enabled || !_tintOn || !_allowTints()) return null;
+    if (!CONFIG.enabled || !_allowTints()) return null;
+    if (isForced()) return { r: 150, g: 40, b: 200, a: 0.14 };   // 強控中：持續淡紫
+    if (!_tintOn) return null;
     const f = _factor();
     if (f <= 0) return null;
     // 淡淡的紫（最高 a≈0.14，隨淡入淡出縮放）

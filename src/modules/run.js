@@ -4,6 +4,7 @@ import { CONFIG, EXPRESSION_SETS } from './config.js';
 import { triggerHypnoSpiral, triggerHypnoWaves, triggerPinkFlash, triggerScreenDistort, triggerVignette } from './effects.js';
 import { triggerClimaxEffect, triggerDanmakuMulti, triggerSteamParticles } from './effects2.js';
 import { BASE_EFFECT_DURATION, refreshCanvasCache } from './geometry.js';
+import { addHypno } from './hypno.js';
 import { playSoundCategory, triggerBreathSound } from './sound.js';
 import { effectScale, getArousalLevel, wait } from './util.js';
 
@@ -35,12 +36,13 @@ import { effectScale, getArousalLevel, wait } from './util.js';
 
         const arousalAdd   = addArousal();
         const scale        = effectScale();
-        const danmakuCount = Math.max(1, Math.round(arousalAdd * Math.min(scale, 1.5)));
+        // 彈幕數量與「興奮增量」脫鉤（arousalStep 可到 20，會洗版）→ 上限 5
+        const danmakuCount = Math.max(1, Math.round(Math.min(arousalAdd, 5) * Math.min(scale, 1.5)));
         const totalDur     = BASE_EFFECT_DURATION * Math.min(scale, 1.4);
         const wordCount    = voiceText.trim().split(/\s+/).length;
 
-        // ② 狀態 emote + 催眠廣播（僅真實觸發，避免測試時洗版）
-        if (!isTest) { sendStatusEmote(); broadcastHypnotized(); }
+        // ② 狀態 emote + 催眠廣播 + 語音催眠值（僅真實觸發，避免測試時洗版）
+        if (!isTest) { sendStatusEmote(); broadcastHypnotized(); addHypno('voice'); }
 
         // ③ 視覺效果同時觸發
         if (CONFIG.centerHeadshot) showCenterHeadshot(totalDur + 1500);

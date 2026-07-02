@@ -4,6 +4,7 @@ import { CONFIG, modApi } from './config.js';
 import { triggerPinkFlash } from './effects.js';
 import { triggerClimaxEffect } from './effects2.js';
 import { _charDrawPos, playerDrawPos } from './geometry.js';
+import { getHypnoValue, isForced } from './hypno.js';
 import { effectScale } from './util.js';
 
 // ════════════════════════════════════════
@@ -47,6 +48,17 @@ import { effectScale } from './util.js';
                                                                                                      ['Hogtied','AllFours','Suspension','SuspensionHogtied'].includes(p)
                                                                                                     )
                     );
+                    // 催眠值進度條：腳邊一條桃紅（避開 LSCG，畫在偏上）；強控時更深紅
+                    if (CONFIG.hypnoEnabled) {
+                        const v = getHypnoValue();
+                        if (v > 0) {
+                            const tw = 380 * zoom, th = 14 * zoom;
+                            const bx = charX + 60 * zoom, by = charY + 930 * zoom;
+                            DrawRect(bx - 2, by - 2, tw + 4, th + 4, 'rgba(0,0,0,0.6)');
+                            DrawRect(bx, by, tw, th, 'rgba(40,10,30,0.7)');
+                            DrawRect(bx, by, tw * (Math.min(100, v) / 100), th, isForced() ? '#FF1493' : '#FF6EB4');
+                        }
+                    }
                 }
                 return result;
             });

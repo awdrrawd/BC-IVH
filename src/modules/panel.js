@@ -4,6 +4,7 @@ import { registerCommandOnce } from './commands.js';
 import { CONFIG, MOD_VER, PREF_ID } from './config.js';
 import { runDepthEffect } from './depth.js';
 import { refreshCanvasCache } from './geometry.js';
+import { wake } from './hypno.js';
 import { parseVoiceText } from './run.js';
 import { preloadSounds } from './sound.js';
 import { saveSettings } from './storage.js';
@@ -334,6 +335,13 @@ import { T, TOGGLE_LABELS, extractChatText, triggerVoiceEffect } from './util.js
             msgEl.querySelector?.('.ChatMessageLocalMessage')) {
             const m = text.match(/\[Voice\]\s*(.*)/s);
             if (m) { triggerVoiceEffect(parseVoiceText(m[1])); return; }
+        }
+
+        // 清醒詞：房內「任何人」在一般聊天說出清醒詞 → 立即清醒（催眠值 >80% 設為 80%）
+        const ww = (CONFIG.wakeWord || '').trim();
+        if (ww && msgEl.classList?.contains('ChatMessageChat')) {
+            const spokenW = extractChatText(msgEl);
+            if (spokenW && spokenW.toLowerCase().includes(ww.toLowerCase())) wake();
         }
 
         // ② 自訂觸發詞：一般聊天訊息含觸發詞，且發送者通過白名單

@@ -5,6 +5,7 @@ import { CONFIG, EXPRESSION_SETS, modApi } from './config.js';
 import { triggerPinkFlash, wrapDanmakuText } from './effects.js';
 import { triggerSteamParticles } from './effects2.js';
 import { _cachedRect, _cachedScaleX, _cachedScaleY, bcToScreen, getPlayerHeadScreenPos, playerDrawPos, refreshCanvasCache } from './geometry.js';
+import { addHypno } from './hypno.js';
 import { playSoundCategory, triggerBreathSound } from './sound.js';
 import { getCatalystTexts, getChatHistoryLines, getOverlay, pickRandom, randInt, resolveMe } from './util.js';
 import { IVH_Z } from './zlayers.js';
@@ -18,28 +19,23 @@ import { IVH_Z } from './zlayers.js';
     //  背景催眠深度循環（與 VOICE 觸發分離）
     //  深度等級 = 由強度推算，受「深度上限」限制
     // ════════════════════════════════════════
-    function currentDepthLevel() {
-        if (!CONFIG.enabled || CONFIG.depthMax <= 0) return 0;
-        let lvl = Math.round(CONFIG.intensity);
-        lvl = Math.max(1, Math.min(3, lvl));
-        return Math.min(lvl, CONFIG.depthMax);
-    }
+    // 相容：0/1（供 window.Liko.IVH.runDepth 用）
+    function currentDepthLevel() { return (CONFIG.enabled && CONFIG.depthEnabled) ? 1 : 0; }
 
     let _depthTimer = null;
     function setDepthTimer(v) { _depthTimer = v; }   // 供 core-init 卸載時清除
     function applyDepthLoop() {
         if (_depthTimer) { clearInterval(_depthTimer); _depthTimer = null; }
-        if (!CONFIG.enabled || CONFIG.depthMax <= 0) return;
+        if (!CONFIG.enabled || !CONFIG.depthEnabled) return;
         const ms = Math.max(1, Math.min(99, CONFIG.depthIntervalMin)) * 60000;
         _depthTimer = setInterval(() => {
             if (typeof CurrentScreen === 'undefined' || CurrentScreen !== 'ChatRoom') return;
-            const lvl = currentDepthLevel();
-            if (lvl > 0) runDepthEffect(lvl);
+            if (CONFIG.enabled && CONFIG.depthEnabled) runDepthEffect();
         }, ms);
     }
 
-    // 背景深度效果（最小可用版；幽靈低語人影／人物模糊／聊天模糊於專屬階段補完）
-    function runDepthEffect(level) {
+    // 定時觸發的深度催眠效果：扁平自由勾選，喘氣單一（用原「深度中」參數）
+    function runDepthEffect() {
         try {
             refreshCanvasCache();
             // 表情變化（共用堆疊，避免與 VOICE 同時觸發時互相覆蓋還原值；6 秒後還原）
@@ -47,30 +43,16 @@ import { IVH_Z } from './zlayers.js';
                 pushExprEffect(EXPRESSION_SETS[Math.floor(Math.random() * EXPRESSION_SETS.length)]);
                 setTimeout(popExprEffect, 6000);
             }
-            const L = CONFIG.depthLight, M = CONFIG.depthMed, H = CONFIG.depthHeavy;
-            let pant = false;
-            // 輕：淡粉煙霧 / 聊天彈幕 / 背後低語人影 / 輕喘
-            if (L.smoke)       triggerPinkFlash();
-            if (L.chatDanmaku) depthChatDanmaku();
-            if (L.ghost)       depthGhostWhisperer();
-            if (L.pant)        pant = true;
-            // 中：世界模糊＋淡紫（BC 原生，自己與人影保持清晰）/ 音效 / 訊息浮現 / 中喘
-            if (level >= 2) {
-                if (M.figureBlur) {
-                    // 模糊強度隨催眠強度：約 2~4 px
-                    const blurLv = Math.max(2, Math.min(4, 2 + (CONFIG.intensity || 1)));
-                    activateHypnoAtmosphere(4300, { blur: true, tint: true, level: blurLv });
-                }
-                if (M.sfx && !playSoundCategory('depth', 0.7)) triggerBreathSound(1);
-                if (M.fade) startChatFade(10000);
-                if (M.pant) pant = true;
-            }
-            // 重：右側聊天模糊 / 強喘
-            if (level >= 3) {
-                if (H.chatlogBlur) depthChatlogBlur();
-                if (H.pant) pant = true;
-            }
-            if (pant) triggerSteamParticles(true, true);  // 深度喘氣：不受 VOICE 開關限制、且一律在人物身上（忽略中央頭像）
+            const E = CONFIG.depthEffects || {};
+            if (E.smoke)       triggerPinkFlash();
+            if (E.chatDanmaku) depthChatDanmaku();
+            if (E.ghost)       depthGhostWhisperer();
+            if (E.figureBlur)  activateHypnoAtmosphere(4300, { blur: true, tint: true, level: 3 });  // 固定強度（原深度中）
+            if (E.sfx && !playSoundCategory('depth', 0.7)) triggerBreathSound(1);
+            if (E.fade)        startChatFade(10000);
+            if (E.chatlogBlur) depthChatlogBlur();
+            if (E.pant)        triggerSteamParticles(true, true);   // 單一喘氣（人物身上）
+            addHypno('depth');   // 深度催眠值
         } catch (e) {
             console.warn('🐈‍⬛ [IVH] 深度效果錯誤:', e.message);
         }

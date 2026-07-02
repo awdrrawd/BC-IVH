@@ -2,7 +2,7 @@
 import { CONFIG } from './config.js';
 import { _emitBreathPuff, breathIntervalMs } from './effects2.js';
 import { BODY_PANT_DY, _cachedRect, _cachedScaleX, _charDrawPos, bcToScreen, otherCharMouthScreenPos, refreshCanvasCache } from './geometry.js';
-import { getOverlay, randInt } from './util.js';
+import { getOverlay } from './util.js';
 import { IVH_Z } from './zlayers.js';
 
 // ════════════════════════════════════════
@@ -131,23 +131,14 @@ import { IVH_Z } from './zlayers.js';
     //  9. 興奮度
     // ════════════════════════════════════════
 function addArousal() {
-    if (!CONFIG.arousal) return 1;
+    const step = CONFIG.arousalStep || 0;
+    if (step <= 0) return 1;   // 0 = 停用（仍回傳 1，讓彈幕數量等不歸零）
     try {
         if (!Player.ArousalSettings || Player.ArousalSettings.Active === "Inactive") return 1;
-
         const current = Player.ArousalSettings.Progress ?? 0;
-
-        let add = randInt(1, 5);
-
-        // 越接近滿值增加越慢（更自然）
-        if (current > 80) add = randInt(1, 3);
-        if (current > 92) add = randInt(1, 2);
-
-        const newVal = Math.min(current + add, 100);
-
+        const newVal = Math.min(current + step, 100);
         ActivitySetArousal(Player, newVal);
-
-        return add;
+        return step;
     } catch (e) {
         console.error("[IVH] addArousal 錯誤:", e);
         return 1;

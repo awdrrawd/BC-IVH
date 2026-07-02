@@ -14,12 +14,14 @@ const bcGlobals = [
   'ChatRoomSendChat', 'ChatRoomSendEmote', 'ChatRoomSendLocal', 'ChatRoomCharacterViewDrawOverlay',
   'ChatRoomRun', 'ChatRoomLeave', 'ChatRoomHideElements', 'PreferenceRegisterExtensionSetting',
   'PreferenceExit', 'CommandCombine', 'CommandExecute', 'LZString', 'bcModSdk',
-  'InformationSheetRun', 'InformationSheetClick', 'InformationSheetExit',
+  'InformationSheetRun', 'InformationSheetClick', 'InformationSheetExit', 'InformationSheetUnload',
   'InformationSheetSelfExit', 'OrgasmStage', 'PreferenceScreen', 'ElementCreateInput',
   'ElementValue', 'ElementRemove', 'ElementPosition', 'GameVersion', 'Localization',
   'AssetGroup', 'Asset', 'InventoryGet', 'DialogFocusItem', 'TextGet',
   'ActivitySetArousal', 'AssetGroupGet', 'ChatRoomMessage', 'DrawTextWrap',
   'InformationSheetSelection', 'PreferenceSubscreenExtensionsOpen',
+  'AssetGetActivity', 'ActivityRun', 'ActivityCanBeDone', 'DrawFlashScreen',
+  'ChatRoomTargetMemberNumber',
 ];
 
 export default [

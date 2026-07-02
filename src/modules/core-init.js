@@ -3,6 +3,8 @@ import { hookChatInput, printChat } from './commands.js';
 import { MOD_VER, modApi, setModApi } from './config.js';
 import { _depthTimer, applyDepthLoop, hookGhostDraw, setDepthTimer } from './depth.js';
 import { hookAtmosphere, hookDrawCharacter, hookOrgasmStage } from './hooks.js';
+import { hookHypnoSpeech } from './hypno-speech.js';
+import { startHypnoDecay } from './hypno.js';
 import { ensureI18n, ui } from './i18n.js';
 import { _domObserver, removePanel, setDomObserver, setupDOMObserver } from './panel.js';
 import { hookProfileButton, hookRemoteEdit, registerPreferenceScreen } from './profile.js';
@@ -109,6 +111,7 @@ import { clearBCXCache } from './util.js';
         publishSharedSettings();
         registerPreferenceScreen();
         applyDepthLoop();
+        startHypnoDecay();     // 催眠值每 12 秒 -1
 
         if (sdkReady) {
             try {
@@ -149,6 +152,7 @@ import { clearBCXCache } from './util.js';
         hookProfileButton();
         hookRemoteEdit();
         hookChatInput();       // 只掛 keydown 保底，CommandCombine 在進房間後才註冊
+        hookHypnoSpeech();     // 強控中攔截說話
         waitForChatRoom();
         console.log(`🐈‍⬛ [IVH] ✅ 初始化完成 v${MOD_VER}`);
 

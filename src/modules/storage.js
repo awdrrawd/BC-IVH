@@ -47,18 +47,18 @@ import { resolveWhitelistNumbers } from './panel.js';
             enabled: c.enabled,
             pinkFlash: c.pinkFlash, hypnoSpiral: c.hypnoSpiral, hypnoWaves: c.hypnoWaves,
             screenDistort: c.screenDistort, vignette: c.vignette, danmaku: c.danmaku,
-            steamParticles: c.steamParticles, expression: c.expression, arousal: c.arousal,
+            steamParticles: c.steamParticles, expression: c.expression,
             chatFade: c.chatFade,
             climax: c.climax, climaxMode: c.climaxMode, sound: c.sound,
-            intensity: c.intensity,
+            intensity: c.intensity, arousalStep: c.arousalStep,
+            hypnoEnabled: c.hypnoEnabled, hypnoVoiceStep: c.hypnoVoiceStep, hypnoDepthStep: c.hypnoDepthStep,
             centerHeadshot: c.centerHeadshot, emoteEnabled: c.emoteEnabled, dualSound: c.dualSound,
             whitelist: c.whitelist, triggerWords: c.triggerWords, seeOthersPant: c.seeOthersPant,
-            depthMax: c.depthMax, depthIntervalMin: c.depthIntervalMin,
-            depthLight: c.depthLight, depthMed: c.depthMed, depthHeavy: c.depthHeavy,
+            depthEnabled: c.depthEnabled, depthIntervalMin: c.depthIntervalMin, depthEffects: c.depthEffects,
             editModes: c.editModes, textSource: c.textSource,
             lang: c.lang,
             customTexts: c.textSource === 'ES' ? c.customTexts : [],
-            emoteList: c.emoteList,
+            emoteList: c.emoteList, wakeWord: c.wakeWord, responseList: c.responseList, allowedPhrases: c.allowedPhrases,
             expressionSets: c.expressionSets,
             soundSource: c.soundSource,
             // 注意：sounds 不存進 ExtensionSettings（帳號隔離），改存 localStorage 跨帳號共用
@@ -108,6 +108,22 @@ import { resolveWhitelistNumbers } from './panel.js';
                         else if (saved.allowOthersEdit) m = 'any';
                         CONFIG.editModes = { catalyst: m, status: 'off', trigger: 'off' };
                     }
+                    // 舊版深度（分層強度）→ 新版（開/關 + 扁平效果）遷移
+                    if (saved.depthMax !== undefined && saved.depthEnabled === undefined) {
+                        CONFIG.depthEnabled = saved.depthMax > 0;
+                    }
+                    if ((saved.depthLight || saved.depthMed || saved.depthHeavy) && saved.depthEffects === undefined) {
+                        const L = saved.depthLight || {}, M = saved.depthMed || {}, H = saved.depthHeavy || {};
+                        CONFIG.depthEffects = {
+                            smoke: !!L.smoke, chatDanmaku: !!L.chatDanmaku, ghost: !!L.ghost,
+                            figureBlur: !!M.figureBlur, sfx: !!M.sfx, fade: !!M.fade,
+                            chatlogBlur: !!H.chatlogBlur, pant: !!(L.pant || M.pant || H.pant),
+                        };
+                    }
+                    // 舊版 arousal(布林) → arousalStep(數值)
+                    if (saved.arousal !== undefined && saved.arousalStep === undefined) {
+                        CONFIG.arousalStep = saved.arousal ? 5 : 0;
+                    }
                 }
             }
         } catch (e) {
@@ -144,20 +160,24 @@ import { resolveWhitelistNumbers } from './panel.js';
     function publishSharedSettings() {
         try {
             if (!Player || !Player.OnlineSharedSettings) return;
-            const em = CONFIG.editModes || { catalyst: 'off', status: 'off', trigger: 'off' };
+            const em = CONFIG.editModes || { catalyst: 'off', status: 'off', trigger: 'off', wake: 'off', response: 'off' };
             const on = m => m === 'any' || m === 'whitelist';
-            const anyEditable = on(em.catalyst) || on(em.status) || on(em.trigger);
+            const cats = ['catalyst', 'status', 'trigger', 'wake', 'response', 'allowed'];
+            const anyEditable = cats.some(k => on(em[k]));
             // 有任何「白名單」類別時，公告展開後的白名單成員編號，讓對方能自行判斷是否可編輯（→ 不可編輯時禁用）
-            const needWl = em.catalyst === 'whitelist' || em.status === 'whitelist' || em.trigger === 'whitelist';
+            const needWl = cats.some(k => em[k] === 'whitelist');
             Player.OnlineSharedSettings[ES_KEY] = {
                 v: MOD_VER,
                 edit: anyEditable,                       // profile 按鈕是否亮起
-                editModes: { catalyst: em.catalyst || 'off', status: em.status || 'off', trigger: em.trigger || 'off' },
+                editModes: { catalyst: em.catalyst || 'off', status: em.status || 'off', trigger: em.trigger || 'off', wake: em.wake || 'off', response: em.response || 'off', allowed: em.allowed || 'off' },
                 wl: needWl ? Array.from(resolveWhitelistNumbers()) : [],
                 // 各類允許編輯時才公告內容，讓他人在 profile 看到並編輯（白名單模式仍由本端驗證）
                 texts:    on(em.catalyst) ? (CONFIG.customTexts || [])  : [],
                 emotes:   on(em.status)   ? (CONFIG.emoteList || [])    : [],
                 triggers: on(em.trigger)  ? (CONFIG.triggerWords || []) : [],
+                wake:     on(em.wake)     ? [CONFIG.wakeWord || '']     : [],
+                response: on(em.response) ? (CONFIG.responseList || []) : [],
+                allowed:  on(em.allowed)  ? (CONFIG.allowedPhrases || []) : [],
             };
             if (typeof ServerAccountUpdate?.QueueData === 'function') {
                 ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
