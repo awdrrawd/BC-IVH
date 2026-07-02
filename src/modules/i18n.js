@@ -52,8 +52,8 @@ import { assetUrl } from './icons.js';
     // 取翻譯：優先用 _IVH_strings（支援手動語言覆蓋）；
     //   其次用引擎 t()（舊版線上字庫只 register、未 expose _IVH_strings 時仍可譯，但只跟遊戲語系）；
     //   最後才退中文 IVH_FALLBACK。
-    function ui(key, vars) {
-        const lang = ivhLang();
+    function ui(key, vars, forceLang) {
+        const lang = forceLang || ivhLang();
         let s;
         const store = window.Liko?._IVH_strings;
         const e = store && store[key];
@@ -107,7 +107,13 @@ import { assetUrl } from './icons.js';
         hs_enterForced: '$me 的精神被不斷侵蝕，眼神越來越渙散，最終徹底墜入催眠的泥沼。',
         hs_forcedIdle: '$me 的雙眼空洞呆滯，偶爾嘴唇會微微顫動，像是想說什麼，卻發不出任何聲音，整個人毫無反應，如同被徹底操控的人偶。',
         hs_exitForced: '經過一段時間後，侵蝕效果慢慢從 $me 的腦中退去，空洞的雙眼逐漸恢復些許光澤，意識開始緩緩回歸。',
+        l10n_test: '【翻譯測試】{name} 傳來的訊息已被 IVH 依你的語言即時替換顯示 ✅',
         hypnoAnimLabel: '催眠動畫', hypnoAnimD: '啟用催眠符咒動畫（開發中）。',
+        fx_faceCensor: '面部識別障礙', fx_faceCensorD: '強控中：看不清「他人」的臉，臉上會蓋一團蠕動的塗鴉。',
+        fx_nameCensor: '名稱識別障礙', fx_nameCensorD: '強控中：看不清「他人」的名字／ID（聊天室名牌與 profile 一併遮蔽）。',
+        censorStyleLabel: '塗鴉樣式', censorStyleD: '面部塗鴉的樣式，二選一。',
+        censorOff: '關', censorStyleCircle: '圓圈', censorStyleLine: '線條',
+        arousalShakeLabel: '興奮震動', arousalShakeD: '興奮值成長時畫面震動的強度（0~10，0＝關）。語音／日常干擾共用。',
         resetAll: '恢復預設', resetAllD: '把 IVH 全部設定恢復為預設值。', confirmResetAll: '確定要把 IVH 所有設定恢復為預設值嗎？此動作無法復原。',
         hypnoLabel: '催眠值', hypnoD: '收到催眠時累積的催眠值（0~100，每 12 秒 -1）。到 100% 進入強控，低於 15% 解除。',
         hypnoVoiceLabel: '語音催眠值', hypnoVoiceD: '每次語音催眠增加（0~20，0＝停用）。',

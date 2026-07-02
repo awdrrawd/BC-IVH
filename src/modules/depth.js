@@ -123,12 +123,22 @@ import { IVH_Z } from './zlayers.js';
         x.globalCompositeOperation = 'source-over';
 
         // 建立「人影角色」克隆（共用被抽中角色的外觀，但用壓暗後的畫布）
-        //  → 用 BC 自己的 DrawCharacter 繪製，位置以玩家座標為基準
+        //  → 用 BC 自己的 DrawCharacter 繪製（身高/姿勢/縮放完全正確，不變形）。
+        //  關鍵：清掉會讓 DrawCharacter 一起畫出來的 overlay（興奮量表、名字、狀態、focus）
+        //    - Name=''            → 不畫名牌
+        //    - ArousalSettings.Visible 非 Access/All + 非玩家 → DrawArousalMeter 直接跳過
+        //    - HasHiddenItems / FocusGroup 清掉 → 不畫隱藏物/聚焦框
         const ghostChar = Object.assign(Object.create(Object.getPrototypeOf(srcChar)), srcChar);
         ghostChar.Canvas = fc;
         ghostChar.CanvasBlink = fc;
         ghostChar.MemberNumber = -99999;   // 非玩家 → hook 不會對它再畫人影
         ghostChar.MustDraw = false;
+        ghostChar.Name = '';               // 不畫名字
+        ghostChar.Nickname = '';
+        ghostChar.HasHiddenItems = false;
+        ghostChar.FocusGroup = null;
+        ghostChar.ArousalSettings = Object.assign({}, srcChar.ArousalSettings || {},
+            { Visible: 'None', Progress: 0, VibratorLevel: 0, OrgasmCount: undefined, OrgasmTimer: 0 });
 
         // 相對玩家的螢幕像素偏移
         const offXpx = 35, offYpx = -10;
@@ -184,6 +194,7 @@ import { IVH_Z } from './zlayers.js';
                             const offXbc = (_ghost.offXpx || 0) / (_cachedScaleX || 0.25);
                             const offYbc = (_ghost.offYpx || 0) / (_cachedScaleY || 0.25);
                             // DrawCharacter 不吃 globalAlpha → 先畫到暫存畫布，再以 alpha 疊上（才有淡入淡出）
+                            //  用 BC 原生 DrawCharacter（身高/縮放正確不變形）；已清掉 overlay 欄位 → 只出人物本體。
                             //  注意：MainCanvas 是 2D context（不是元素），尺寸要用 .canvas
                             const cvEl = (MainCanvas && MainCanvas.canvas) || document.getElementById('MainCanvas');
                             if (!_ghostTemp) _ghostTemp = document.createElement('canvas');

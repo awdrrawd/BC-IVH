@@ -45,7 +45,7 @@ import { effectScale, getArousalLevel, wait } from './util.js';
         if (!isTest) { sendStatusEmote(); broadcastHypnotized(); addHypno('voice'); }
 
         // ③ 視覺效果同時觸發
-        if (CONFIG.centerHeadshot) showCenterHeadshot(totalDur + 1500);
+        if (CONFIG.centerHeadshot) showCenterHeadshot(totalDur + 1500, true);   // 喘氣時頭像呼吸縮放
         triggerVignette();
         triggerScreenDistort();
         triggerPinkFlash();

@@ -11,6 +11,33 @@ import { IVH_Z } from './zlayers.js';
 // ════════════════════════════════════════
 
     // ════════════════════════════════════════
+    //  0. 興奮震動：興奮值成長時，整個遊戲畫布短暫抖動（比照 BC 興奮量表震動）
+    //     強度來自設定 arousalShake（0~10，0＝關）。多次觸發只延長，不疊加抖動迴圈。
+    // ════════════════════════════════════════
+    let _shakeUntil = 0, _shaking = false;
+    function triggerArousalShake(intensity) {
+        const amp = Math.min(10, Math.max(0, Number(intensity) || 0));
+        if (amp <= 0) return;
+        const canvas = document.getElementById('MainCanvas') || document.querySelector('canvas');
+        if (!canvas) return;
+        const px = amp * 1.4;                 // 最大位移像素
+        _shakeUntil = Date.now() + 340;
+        if (_shaking) return;                 // 已有迴圈在跑 → 只延長
+        _shaking = true;
+        const base = canvas.style.transform || '';
+        const loop = () => {
+            const left = _shakeUntil - Date.now();
+            if (left <= 0) { canvas.style.transform = base; _shaking = false; return; }
+            const k  = left / 340;            // 隨時間衰減
+            const dx = (Math.random() - 0.5) * 2 * px * k;
+            const dy = (Math.random() - 0.5) * 2 * px * k;
+            canvas.style.transform = `${base} translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+            requestAnimationFrame(loop);
+        };
+        requestAnimationFrame(loop);
+    }
+
+    // ════════════════════════════════════════
     //  1. 粉紅暈染（強度動態）
     // ════════════════════════════════════════
     function triggerPinkFlash() {
@@ -452,6 +479,7 @@ import { IVH_Z } from './zlayers.js';
     }
 
 export {
+    triggerArousalShake,
     triggerPinkFlash,
     triggerVignette,
     triggerHypnoSpiral,

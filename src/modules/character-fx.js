@@ -1,7 +1,8 @@
 // ── auto-wired cross-module imports ──
 import { CONFIG } from './config.js';
 import { _emitBreathPuff, breathIntervalMs } from './effects2.js';
-import { BODY_PANT_DY, _cachedRect, _cachedScaleX, _charDrawPos, bcToScreen, otherCharMouthScreenPos, refreshCanvasCache } from './geometry.js';
+import { triggerArousalShake } from './effects.js';
+import { BODY_PANT_DY, _cachedRect, _cachedScaleX, _charDrawPos, bcToScreen, otherCharMouthScreenPos, playerDrawPos, refreshCanvasCache } from './geometry.js';
 import { getOverlay } from './util.js';
 import { IVH_Z } from './zlayers.js';
 
@@ -138,6 +139,7 @@ function addArousal(kind) {
         const current = Player.ArousalSettings.Progress ?? 0;
         const newVal = Math.min(current + step, 100);
         ActivitySetArousal(Player, newVal);
+        if (newVal > current && CONFIG.arousalShake > 0) triggerArousalShake(CONFIG.arousalShake);   // 興奮成長 → 畫面震動
         return step;
     } catch (e) {
         console.error("[IVH] addArousal 錯誤:", e);
@@ -253,18 +255,22 @@ function addArousal(kind) {
     }
 
     // ════════════════════════════════════════
-    //  中央頭像：裁玩家臉部成 300×300，置於畫面左半中心
+    //  中央頭像：裁玩家臉部成 300×300，置於「人物 ZOOM 的正中央」
     //  （螺旋／喘氣等效果會以此為基準，忽略分頁問題）
+    //  breathe=true（啟用喘氣時）→ 頭像會隨呼吸微幅縮放（速度為原喘氣頭像的一半）
     // ════════════════════════════════════════
     let _centerHeadEl = null;
-    function showCenterHeadshot(durationMs) {
+    function showCenterHeadshot(durationMs, breathe = false) {
         try {
             if (_centerHeadEl) { _centerHeadEl.remove(); _centerHeadEl = null; }
 
             const SZ  = 300;
             const cv  = document.createElement('canvas'); cv.width = cv.height = SZ;
             const ctx = cv.getContext('2d');
-            const pos     = bcToScreen(500, 360);
+            // 定位在「玩家角色 ZOOM 的正中央」：BC 角色畫布 500×1000，中心 = (250,500)
+            const pos = (playerDrawPos && playerDrawPos.valid)
+                ? bcToScreen(playerDrawPos.x + 250 * playerDrawPos.zoom, playerDrawPos.y + 500 * playerDrawPos.zoom)
+                : bcToScreen(500, 500);
             const dispSZ  = Math.max(340, SZ * (_cachedScaleX || 0.35) * 1.7);
 
             const el = document.createElement('img');
@@ -277,6 +283,7 @@ function addArousal(kind) {
                 borderRadius:  '50%',
                 objectFit:     'cover',
                 pointerEvents: 'none',
+                transformOrigin: 'center',
                 zIndex:        IVH_Z.base, // 頭像層：煙霧 > 螺旋 > 頭像 > 其它特效(auto)
                 boxShadow:     '0 0 40px rgba(255,80,160,0.5)',
                 opacity:       '0',
@@ -284,6 +291,17 @@ function addArousal(kind) {
             });
             getOverlay().appendChild(el);  // 放 overlay
             _centerHeadEl = el;
+
+            // 呼吸縮放（啟用喘氣時）：週期 1300ms＝原喘氣頭像 650ms 的一半速度，±6%
+            if (breathe) {
+                const bstart = Date.now();
+                const doBreathe = () => {
+                    if (el !== _centerHeadEl) return;
+                    el.style.transform = `scale(${1 + Math.sin((Date.now() - bstart) / 1300 * Math.PI * 2) * 0.06})`;
+                    requestAnimationFrame(doBreathe);
+                };
+                requestAnimationFrame(doBreathe);
+            }
 
             // 從玩家自己的角色 Canvas 裁臉（FCM 同款來源，不會截到別人）
             // 正方裁切並以臉部為中心；側臉 0.43h 含瀏海，避免人物偏低

@@ -8,22 +8,12 @@
 // ════════════════════════════════════════
 
 import { CONFIG, modApi } from './config.js';
-import { isForced, wake } from './hypno.js';
-import { ui } from './i18n.js';
+import { isForced } from './hypno.js';
+import { sendLocalizedAction } from './l10n.js';
 import { resolveMe, pickRandom } from './util.js';
 
 let _busy = false;
 
-// 送一條系統 Action（房內可見；text 已解析 $me）
-function sendAction(text) {
-    try {
-        if (typeof ServerSend !== 'function' || !text) return;
-        ServerSend('ChatRoomChat', {
-            Type: 'Action', Content: 'CUSTOM_SYSTEM_ACTION',
-            Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: text }],
-        });
-    } catch (e) {}
-}
 function sendChat(text) {
     try { if (typeof ServerSend === 'function' && text) ServerSend('ChatRoomChat', { Type: 'Chat', Content: String(text) }); } catch (e) {}
 }
@@ -44,7 +34,7 @@ function doMasturbate() {
             }
         }
     } catch (e) {}
-    sendAction(resolveMe(ui('hs_lewdFallback')));   // 無法執行活動 → 文字描述
+    sendLocalizedAction('hs_lewdFallback');   // 無法執行活動 → 文字描述
 }
 
 // 讀取聊天輸入、判斷是否該攔截；攔截則清空輸入並跑流程，回傳 true
@@ -68,21 +58,21 @@ export function maybeInterceptHypnoSpeech() {
 
     try { ElementValue('InputChat', ''); } catch (e) {}   // 清空輸入，阻止原本送出
     _busy = true;
-    sendAction(resolveMe(ui('hs_thinking')));
+    sendLocalizedAction('hs_thinking');
     setTimeout(() => {
         try {
             const r = Math.floor(Math.random() * 4);
             if (r === 0) {
-                sendAction(resolveMe(ui('hs_blank')));
+                sendLocalizedAction('hs_blank');
             } else if (r === 1) {
-                sendAction(resolveMe(ui('hs_pause')));
+                sendLocalizedAction('hs_pause');
                 sendChat(t);
             } else if (r === 2) {
-                sendAction(resolveMe(ui('hs_intercept')));
+                sendLocalizedAction('hs_intercept');
                 const list = (CONFIG.responseList || []).filter(Boolean);
                 sendChat(resolveMe(list.length ? pickRandom(list, 1)[0] : t));
             } else {
-                sendAction(resolveMe(ui('hs_lewd')));
+                sendLocalizedAction('hs_lewd');
                 doMasturbate();
             }
         } catch (e) {}

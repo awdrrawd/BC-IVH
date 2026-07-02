@@ -77,12 +77,16 @@ import { CONFIG } from './config.js';
     const DEPTH_PANT_EXTRA = 30;   // 深度喘氣再往下 30
 
     // 把角色 asset 座標 (ax, ay) 轉成 BC 畫布座標（預設玩家；可傳入其他角色與其繪製座標）
+    //  身高/姿勢偏移優先用 BC 原生 CharacterAppearance[XY]Offset（含 ForceUpButton 等邊界，
+    //  最聰明也最不會與 BC 脫節）；舊版沒有這兩個函數時才退回本地公式。
     function bodyAssetToBc(ax, ay, C = Player, dp = playerDrawPos) {
         const ratio = (typeof C?.HeightRatio === 'number') ? C.HeightRatio : 1;
         const prop  = (typeof C?.HeightRatioProportion === 'number') ? C.HeightRatioProportion : 1;
         const hMod  = (typeof C?.HeightModifier === 'number') ? C.HeightModifier : 0;
-        const xOff  = 500 * (1 - ratio) / 2;
-        const yOff  = 1000 * (1 - ratio) * prop - hMod * ratio;
+        const xOff  = (typeof CharacterAppearanceXOffset === 'function')
+            ? CharacterAppearanceXOffset(C, ratio) : 500 * (1 - ratio) / 2;
+        const yOff  = (typeof CharacterAppearanceYOffset === 'function')
+            ? CharacterAppearanceYOffset(C, ratio) : 1000 * (1 - ratio) * prop - hMod * ratio;
         const z     = dp.zoom;
         return {
             x: dp.x + z * (xOff + ax * ratio),

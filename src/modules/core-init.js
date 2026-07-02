@@ -6,6 +6,8 @@ import { hookAtmosphere, hookDrawCharacter, hookOrgasmStage } from './hooks.js';
 import { hookHypnoSpeech } from './hypno-speech.js';
 import { startHypnoDecay } from './hypno.js';
 import { ensureI18n, ui } from './i18n.js';
+import { hookCensor } from './censor.js';
+import { hookL10n } from './l10n.js';
 import { _domObserver, removePanel, setDomObserver, setupDOMObserver } from './panel.js';
 import { hookProfileButton, hookRemoteEdit, registerPreferenceScreen } from './profile.js';
 import { IVHDB, loadSettings, publishSharedSettings, waitForExtensionSettings } from './storage.js';
@@ -153,6 +155,8 @@ import { clearBCXCache } from './util.js';
         hookRemoteEdit();
         hookChatInput();       // 只掛 keydown 保底，CommandCombine 在進房間後才註冊
         hookHypnoSpeech();     // 強控中攔截說話
+        hookL10n();            // 在地化訊息：接收端依自己語言替換夾帶標記的訊息
+        hookCensor();          // 面部/名稱識別障礙（強控中看不清他人臉與名字）
         waitForChatRoom();
         console.log(`🐈‍⬛ [IVH] ✅ 初始化完成 v${MOD_VER}`);
 

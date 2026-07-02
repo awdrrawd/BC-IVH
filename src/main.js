@@ -11,6 +11,7 @@ import { handleIVHCommand } from './modules/commands.js';
 import { currentDepthLevel, runDepthEffect } from './modules/depth.js';
 import { getHypnoValue, isForced, wake } from './modules/hypno.js';
 import { EXT } from './modules/preference.js';
+import { l10nTest } from './modules/l10n.js';
 import { initialize } from './modules/core-init.js';
 
 // 對外唯一入口：window.Liko.IVH（版本 + API 合併為同一物件；loader 先設 'loading'）
@@ -38,6 +39,8 @@ window.Liko.IVH = {
     reload: () => loadSettings(),
     exportSettings,
     importSettings,
+    // POC：發一條亂碼訊息並夾帶翻譯標記（驗證接收端在地化）
+    l10nTest: (key) => l10nTest(key),
 };
 
 initialize();

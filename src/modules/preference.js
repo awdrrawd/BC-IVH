@@ -307,10 +307,21 @@ import { IVH_Z } from './zlayers.js';
             el.style.top    = (r.top  + 560  * sy) + 'px';
             el.style.width  = (510 * sx) + 'px';
             el.style.height = (320 * sy) + 'px';
+            // 效果演示畫玩家頭像：非同步截一次臉（載入後重繪）
+            if (!this._demoFace) {
+                try { captureFaceImage(img => { this._demoFace = img.src; this._demoCur = ''; }, Player && Player.Canvas); } catch (e) {}
+            }
             if (this._demoCur !== kind) { this._demoCur = kind; el.innerHTML = this._demoHTML(kind); }
         },
         _demoHTML(kind) {
             const W = (inner) => `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;position:relative">${inner}</div>`;
+            // 玩家頭像底圖（載入前退回漸層圓）；overlay 疊在頭像上
+            const face = this._demoFace;
+            const HS = (overlay = '') => W(`<div style="position:relative;width:150px;height:150px">
+                ${face
+                    ? `<img src="${face}" style="width:150px;height:150px;border-radius:50%;object-fit:cover;box-shadow:0 0 24px #ff66bb88;animation:ivhPinkPulse 2.6s ease-in-out infinite"/>`
+                    : `<div style="width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,#3a1040,#1a0028);box-shadow:0 0 24px #ff66bb88"></div>`}
+                ${overlay}</div>`);
             switch (kind) {
                 case 'hypnoSpiral': {
                     // 真正的阿基米德螺旋線（與實際效果一致）
@@ -338,11 +349,26 @@ import { IVH_Z } from './zlayers.js';
                 case 'danmaku':
                     return W('催眠中…'.split('').map((c,i)=>`<span style="display:inline-block;font-size:30px;color:#ffd6eb;text-shadow:0 0 10px #ff50a0;animation:ivhWaveChar 1.6s ease-in-out ${i*90}ms infinite">${c}</span>`).join(''));
                 case 'steamParticles':
-                    return W(['0s','0.4s','0.8s','0.6s'].map((d,i)=>`<div style="position:absolute;left:50%;top:58%;width:40px;height:40px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,0.55),transparent 70%);filter:blur(4px);animation:ivhBreath${i%3} 1.9s ease-out ${d} infinite"></div>`).join(''));
+                    return HS(['0s','0.4s','0.8s','0.6s'].map((d,i)=>`<div style="position:absolute;left:50%;top:34%;width:36px;height:36px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,0.6),transparent 70%);filter:blur(4px);animation:ivhBreath${i%3} 1.9s ease-out ${d} infinite"></div>`).join(''));
+                case 'expression':
+                    return HS(`<div style="position:absolute;right:6px;bottom:6px;font-size:40px;animation:ivhPinkPulse 1.8s ease-in-out infinite">😳</div>`);
                 case 'climax':
                     return W(`<div style="width:210px;height:140px;border-radius:8px;background:white;animation:ivhClimaxFlash 1.3s ease-out infinite"></div>`);
                 case 'centerHeadshot':
-                    return W(`<div style="width:120px;height:120px;border-radius:50%;border:3px solid #ff80cc;background:radial-gradient(circle,#3a1040,#1a0028);box-shadow:0 0 30px #ff66bb88;display:flex;align-items:center;justify-content:center;font-size:48px">🙂</div>`);
+                    return HS('');   // 玩家頭像（呼吸縮放示意）
+                case 'faceCensorCircle':
+                    return HS(`<svg viewBox="-75 -75 150 150" width="150" height="150" style="position:absolute;left:0;top:0;animation:ivhSpiralSpin 3.2s linear infinite">
+                        <g fill="none" stroke="#000" stroke-width="7" stroke-linecap="round">
+                            <ellipse cx="0" cy="0" rx="52" ry="46"/><ellipse cx="8" cy="-5" rx="38" ry="44"/><ellipse cx="-7" cy="6" rx="45" ry="34"/>
+                        </g></svg>`);
+                case 'faceCensorLine':
+                    return HS(`<svg viewBox="-75 -75 150 150" width="150" height="150" style="position:absolute;left:0;top:0;animation:ivhSpiralSpin 4s linear infinite reverse">
+                        <g fill="none" stroke="#000" stroke-width="8" stroke-linecap="round">
+                            <path d="M-58 -22 L60 18 M-42 52 L34 -58 M-62 28 L56 -38 M-4 -62 L12 62 M-60 -4 L62 8"/>
+                        </g></svg>`);
+                case 'nameCensor':
+                    return HS(`<div style="position:absolute;bottom:2px;left:50%;transform:translateX(-50%);font-size:20px;font-weight:700;color:#fff;text-shadow:0 0 4px #000;white-space:nowrap">Nymphaea
+                        <span style="position:absolute;left:-5px;top:-3px;right:-5px;bottom:-3px;background:#000;border-radius:3px;animation:ivhPinkPulse 1.8s ease-in-out infinite"></span></div>`);
                 case 'ghost':
                     return W(`<div style="position:relative;width:180px;height:180px">
                         <div style="position:absolute;left:18px;top:30px;width:90px;height:140px;border-radius:40px 40px 0 0;background:rgba(8,2,14,0.85);animation:ivhPinkPulse 2.4s ease-in-out infinite"></div>
@@ -686,7 +712,9 @@ import { IVH_Z } from './zlayers.js';
             cy += 52;
             // 興奮值 / 催眠值（在效果設定上方；標籤不加後綴，已分類到本子頁）
             this._sliderVal(cy, 'arousalStepLabel', 'arousalVoiceD', () => CONFIG.arousalStepVoice, v => { CONFIG.arousalStepVoice = Math.round(v); }, 0, 20, 1); cy += 48;
-            this._sliderVal(cy, 'hypnoLabel', 'hypnoVoiceD2', () => CONFIG.hypnoVoiceStep, v => { CONFIG.hypnoVoiceStep = Math.round(v); }, 0, 20, 1); cy += 54;
+            this._sliderVal(cy, 'hypnoLabel', 'hypnoVoiceD2', () => CONFIG.hypnoVoiceStep, v => { CONFIG.hypnoVoiceStep = Math.round(v); }, 0, 20, 1); cy += 48;
+            // 興奮成長震動（全域：語音／日常干擾興奮成長時都套用）
+            this._sliderVal(cy, 'arousalShakeLabel', 'arousalShakeD', () => CONFIG.arousalShake, v => { CONFIG.arousalShake = Math.round(v); }, 0, 10, 1); cy += 54;
             // 效果設定
             this.title(cy, ui('sec_effects'), ui('effectsHint')); cy += 40;
             const list = this._effectToggles();
@@ -747,6 +775,23 @@ import { IVH_Z } from './zlayers.js';
             this.title(cy, ui('hypnoAnimLabel'), ui('hypnoAnimD'));
             this.toggle(650, cy - 20, 116, 40, CONFIG.hypnoAnimEnabled ? ui('on') : ui('off'), CONFIG.hypnoAnimEnabled, ui('hypnoAnimD'),
                 () => { CONFIG.hypnoAnimEnabled = !CONFIG.hypnoAnimEnabled; saveSettings(); });
+            cy += 52;
+            // 面部識別障礙：關 / 圓圈 / 線條（三選一，各自演示）
+            this.title(cy, ui('fx_faceCensor'), ui('fx_faceCensorD'));
+            const fcOff = !CONFIG.faceCensor;
+            const fcCircle = CONFIG.faceCensor && CONFIG.faceCensorStyle !== 'line';
+            const fcLine = CONFIG.faceCensor && CONFIG.faceCensorStyle === 'line';
+            this.toggle(650, cy - 20, 90, 40, ui('censorOff'), fcOff, ui('fx_faceCensorD'),
+                () => { CONFIG.faceCensor = false; saveSettings(); });
+            this.toggle(748, cy - 20, 108, 40, ui('censorStyleCircle'), fcCircle, ui('fx_faceCensorD'),
+                () => { CONFIG.faceCensor = true; CONFIG.faceCensorStyle = 'circle'; saveSettings(); }, 'faceCensorCircle');
+            this.toggle(864, cy - 20, 108, 40, ui('censorStyleLine'), fcLine, ui('fx_faceCensorD'),
+                () => { CONFIG.faceCensor = true; CONFIG.faceCensorStyle = 'line'; saveSettings(); }, 'faceCensorLine');
+            cy += 52;
+            // 名稱識別障礙（演示）
+            this.title(cy, ui('fx_nameCensor'), ui('fx_nameCensorD'));
+            this.toggle(650, cy - 20, 116, 40, CONFIG.nameCensor ? ui('on') : ui('off'), CONFIG.nameCensor, ui('fx_nameCensorD'),
+                () => { CONFIG.nameCensor = !CONFIG.nameCensor; saveSettings(); }, 'nameCensor');
             this._track(cy + 50);
         },
 
