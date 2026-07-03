@@ -192,6 +192,7 @@ function _drawTooltip(text, rightX, midY) {
 export function drawHypnoStatusForChar(C, charX, charY, zoom) {
     try {
         if (typeof MainCanvas === 'undefined' || !MainCanvas) return;
+        if (!CONFIG.enabled) return;                 // 總開關關 → 進度球/符咒一律不畫
         if (C?.MemberNumber == null) return;
         const isMe = Player?.MemberNumber != null && C.MemberNumber === Player.MemberNumber;
 

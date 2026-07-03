@@ -2,7 +2,7 @@
 // @name         HSC - Hypnotic Slave Club - 本地版
 // @name:zh      沉浸式聲音催眠效果 - 本地開發
 // @namespace    https://likulisu.dev/
-// @version     0.1
+// @version     1.0
 // @description  HSC 本地開發載入器（從 vite preview 讀取，npm run dev，port 5174）
 // @author       莉柯莉絲(Likolisu)
 // @supportURL   https://github.com/awdrrawd/BC-HSC

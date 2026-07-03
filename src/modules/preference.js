@@ -4,6 +4,7 @@ import { CONFIG, DEFAULT_EXPRESSIONS, MOD_VER, makeDefaultConfig, setConfig, set
 import { applyDepthLoop } from './depth.js';
 import { assetUrl } from './icons.js';
 import { updateHeadTalisman } from './hypno-anim.js';
+import { disableHypno } from './hypno.js';
 import { HSC_LANGS, HSC_LANG_NAMES, ui } from './i18n.js';
 import { WL_TOKENS } from './panel.js';
 import { hscConfirm } from './profile.js';
@@ -451,7 +452,11 @@ import { HSC_Z } from './zlayers.js';
                 else if (typeof PreferenceExit === 'function') PreferenceExit();
                 return;
             }
-            if (!remote && MouseIn(100, 205, 300, 50)) { CONFIG.enabled = !CONFIG.enabled; saveSettings(); return; }
+            if (!remote && MouseIn(100, 205, 300, 50)) {
+                CONFIG.enabled = !CONFIG.enabled; saveSettings();
+                if (!CONFIG.enabled) { try { disableHypno(); } catch (e) {} }   // 總開關關 → 歸零狀態並清除所有顯示中效果
+                return;
+            }
             const TABP = Math.min(80, Math.floor(660 / Math.max(1, tabs.length)));
             for (let i = 0; i < tabs.length; i++) {
                 if (MouseIn(100, 285 + i * TABP, 300, 50)) {
@@ -882,11 +887,11 @@ import { HSC_Z } from './zlayers.js';
                     (col) => { CONFIG.hypnoAnimColor = col; saveSettings(); }, ui('hypnoStyleD'), dk);
             }
             cy += 52;
-            // 面部識別障礙：開/關 ＋（開啟時）◀ 圓圈/線條 ▶（同催眠動畫樣式選擇器）
+            // 面部識別障礙：開/關 ＋ ◀ 圓圈/線條 ▶（樣式選擇器一律顯示，關閉時也能挑選/檢查）
             this.title(cy, ui('fx_faceCensor'), ui('fx_faceCensorD'));
             this.toggle(CX, cy - 20, BW, 40, CONFIG.faceCensor ? ui('on') : ui('off'), CONFIG.faceCensor, ui('fx_faceCensorD'),
                 () => { CONFIG.faceCensor = !CONFIG.faceCensor; saveSettings(); });
-            if (CONFIG.faceCensor) {
+            {
                 const isLine = CONFIG.faceCensorStyle === 'line';
                 const styleName = isLine ? ui('censorStyleLine') : ui('censorStyleCircle');
                 const fdk = isLine ? 'faceCensorLine' : 'faceCensorCircle';

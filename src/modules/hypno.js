@@ -11,7 +11,7 @@ import { CONFIG, EXPRESSION_SETS } from './config.js';
 import { pushExprEffect, popExprEffect, hypnoOrgasm } from './character-fx.js';
 import { sendLocalizedAction } from './l10n.js';
 import { updateCrowd } from './crowd.js';
-import { updateHeadTalisman, playHypnoAnim } from './hypno-anim.js';
+import { updateHeadTalisman, playHypnoAnim, stopHypnoAnim } from './hypno-anim.js';
 import { publishHypnoState } from './storage.js';
 
 // 把目前催眠進度公告出去（供房內其他 HSC 玩家在你頭上顯示進度球／符咒）
@@ -100,6 +100,23 @@ export function restoreHypnoState(v, forced) {
         _idleTimer = setInterval(() => { if (_forced) sendLocalizedAction('hs_forcedIdle'); }, 600000);
     }
     _publishHypno(true);   // 重新公告，確保數值一致
+}
+
+// 關閉 HSC 總開關：把催眠進度歸零、狀態設 false（公告給他人），並清除所有顯示中的效果。
+export function disableHypno() {
+    _hypno = 0;
+    _forced = false;
+    if (_idleTimer) { clearInterval(_idleTimer); _idleTimer = null; }
+    if (_forcedExprPushed) { try { popExprEffect(); } catch (e) {} _forcedExprPushed = false; }
+    // 清除顯示中的狀態：人群、儀式動畫、頭上符咒
+    try { updateCrowd(false); } catch (e) {}
+    try { stopHypnoAnim(); } catch (e) {}
+    try { updateHeadTalisman(); } catch (e) {}
+    // 清空 overlay 上所有暫態特效（喘氣、彈幕、螺旋、煙霧等）＋還原畫布濾鏡/位移
+    try { const ov = document.getElementById('hsc-overlay'); if (ov) ov.innerHTML = ''; } catch (e) {}
+    try { const cv = document.getElementById('MainCanvas') || document.querySelector('canvas'); if (cv) { cv.style.filter = ''; cv.style.transform = ''; } } catch (e) {}
+    // OnlineSharedSettings：催眠進度 0、狀態 false（立即送出，讓他人不再看到你被催眠）
+    try { publishHypnoState(0, false, CONFIG.hypnoAnimColor, CONFIG.hypnoAnimStyle, true); } catch (e) {}
 }
 
 // 清醒詞：立即清醒；催眠值 >80% → 設為 80%
