@@ -35,8 +35,8 @@ import { assetUrl } from '../util/icons.js';
         } catch (e) { console.warn('🐈‍⬛ [HSC] i18n 載入失敗，改用中文原文:', e.message); }
     }
     // 可選語言（auto = 依遊戲語系）
-    const HSC_LANGS = ['auto', 'TW', 'CN', 'EN', 'DE', 'FR', 'RU', 'UA'];
-    const HSC_LANG_NAMES = { auto: 'Auto', TW: '繁體中文', CN: '简体中文', EN: 'English', DE: 'Deutsch', FR: 'Français', RU: 'Русский', UA: 'Українська' };
+    const HSC_LANGS = ['auto', 'TW', 'CN', 'EN', 'JP', 'KR', 'DE', 'FR', 'RU', 'UA'];
+    const HSC_LANG_NAMES = { auto: 'Auto', TW: '繁體中文', CN: '简体中文', EN: 'English', JP: '日本語', KR: '한국어', DE: 'Deutsch', FR: 'Français', RU: 'Русский', UA: 'Українська' };
 
     // 目前語言：玩家手動選 > 遊戲語系
     function hscLang() {
