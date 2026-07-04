@@ -1,7 +1,7 @@
 // ── auto-wired cross-module imports ──
 import { CONFIG } from '../core/config.js';
 import { _emitBreathPuff, breathIntervalMs } from './breath.js';
-import { BODY_PANT_DY, _cachedRect, _cachedScaleX, _charDrawPos, bcToScreen, otherCharMouthScreenPos, refreshCanvasCache } from '../util/geometry.js';
+import { BODY_PANT_DY, DEPTH_PANT_EXTRA, _cachedRect, _cachedScaleX, _charDrawPos, bcToScreen, otherCharMouthScreenPos, refreshCanvasCache } from '../util/geometry.js';
 import { getOverlay } from '../util/util.js';
 import { HSC_Z } from '../util/zlayers.js';
 
@@ -286,8 +286,8 @@ function addArousal(kind) {
                 if (C && dp && _cachedRect && (Date.now() - dp.t < 1000)) {
                     const m  = otherCharMouthScreenPos(C, dp);
                     const ss = Math.max(0.5, Math.min(2.2, (dp.zoom || 1) * (_cachedScaleX || 0.3) * 2.4));
-                    // 與自身人物身上喘氣相同的偏移 → A 看到的位置與 B 自己看到的一致
-                    _emitBreathPuff(overlay, { x: m.x, y: m.y + BODY_PANT_DY, ss });
+                    // 與自身「身上喘氣」相同的總偏移（BODY_PANT_DY + DEPTH_PANT_EXTRA + 5）→ A 看到的位置與 B 自己看到的一致
+                    _emitBreathPuff(overlay, { x: m.x, y: m.y + BODY_PANT_DY + DEPTH_PANT_EXTRA + 5, ss });
                 }
             } catch (e) {}
             setTimeout(loop, breathIntervalMs(_otherPantInten[memberNum] || 1));
