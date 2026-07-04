@@ -2,7 +2,7 @@
 
 收到 `[Voice]` 訊息時觸發沉浸式催眠視覺／音效效果，支援 `/hsc` 指令。作者：莉柯莉絲(Likolisu)。
 
-本專案比照 [BC-AEE](https://github.com/awdrrawd/BC-AEE) 的模式：以 **Vite** 把 `src/` 下的 ES 模組打包成單一 `dist/assets/main.js`，由使用者腳本（loader）用動態 `import()` 載入。GitHub Actions 於 push 到 `main` 時自動 build 並部署到 GitHub Pages。
+本專案以 **Vite** 把 `src/` 下的 ES 模組打包成單一 `dist/assets/main.js`，由使用者腳本（loader）用動態 `import()` 載入。GitHub Actions 於 push 到 `main` 時自動 build 並部署到 GitHub Pages。
 
 ## 安裝（使用者）
 
@@ -60,7 +60,7 @@ src/
 ### 模組化重點
 
 - **共用可變狀態**（`CONFIG`、`EXPRESSION_SETS`、`modApi`、`_depthTimer`、`_domObserver`…）集中由擁有模組以 ESM live-binding 匯出，重新指派一律經 setter（`setConfig` / `setModApi`…），其他模組只讀。
-- **i18n**：優先使用共用的 `window.Liko.i18n` 引擎（跨插件一致語系），未就緒時退回內建中文字庫，因此可離線運作。
+- **i18n**：優先使用共用的 `window.Liko.i18n` 引擎（跨插件一致語系），未就緒時退回內建詞庫。
 - **版本號**單一來源為 `package.json`，經 vite `define` 注入為 `__HSC_VERSION__`；`npm run dev/build` 前會 `sync-version` 同步兩個 loader 的 `@version`。
 - **對外 API**：`window.Liko.HSCApi`（`trigger` / `test` / `runDepth` / `command` / `getConfig` / `save`…），供測試與其他插件連動。
 
