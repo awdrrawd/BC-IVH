@@ -80,8 +80,8 @@ import { HSC_Z } from '../util/zlayers.js';
         try {
             // 優先權拉高（>LSCG 的 11、UBC 的 4）：remote 頁開啟時 return 不呼叫 next，
             // 讓其它插件的按鈕/子頁完全不繪製，避免蓋在我們的設定頁上。
-            const SHEET_PRIO = 100;
-            modApi.hookFunction('InformationSheetRun', SHEET_PRIO, (args, next) => {
+            const SHEET_PRIO = 15;
+            modApi.hookFunction('InformationSheetRun', 5, (args, next) => {
                 // remote 設定頁開啟 → 就地接管整個畫面（不繪製 profile 本體、也不跑其它 hook）
                 if (EXT.ctx === 'remote' && EXT.remote) {
                     const prevAlign = MainCanvas.textAlign;
