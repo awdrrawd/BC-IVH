@@ -54,6 +54,25 @@ import { ensureColorAPI } from '../util/icons.js';
         });
     }
 
+    // 等待「帳號真正登入完成」——waitForGame 在登入畫面就會通過（Player 是登入前的佔位角色），
+    //  若在那時就 loadSettings 會讀到空的 ExtensionSettings、拿到預設值，之後任何存檔就把帳號上的
+    //  真資料覆蓋掉（＝一直掉設定的主因）。這裡等到登入後才載入設定。
+    //  不設逾時：不管多久都等到登入完成才載入設定（絕不在登入前碰設定）。
+    function waitForLogin() {
+        return new Promise(resolve => {
+            const check = () => {
+                let loggedIn = false;
+                try {
+                    loggedIn = (typeof ServerIsLoggedIn === 'function' && ServerIsLoggedIn())
+                        || (typeof Player !== 'undefined' && Player && typeof Player.MemberNumber === 'number' && Player.MemberNumber > 0 && !!Player.AccountName);
+                } catch (e) {}
+                if (loggedIn) resolve(true);
+                else setTimeout(check, 200);
+            };
+            check();
+        });
+    }
+
     let _fallbackInterval = null;
     let _screenGuard = null;
 
@@ -123,9 +142,11 @@ import { ensureColorAPI } from '../util/icons.js';
             return;
         }
 
-        // 先載入 i18n（讓預設文本等依語言產生），再等 ExtensionSettings
+        // 先載入 i18n（讓預設文本等依語言產生）
         await ensureI18n();
         ensureColorAPI();   // 非阻塞：載入共用 ColorAPI，供註冊/資料頁按鈕依實際背景色挑深/淺圖示
+        // ★ 等帳號真正登入後，才讀取／還原設定（否則會讀到登入前的空資料 → 存檔覆蓋真資料 → 掉設定）。不設逾時。
+        await waitForLogin();
         await waitForExtensionSettings();
         // ★ 先把伺服器公告的上次催眠狀態存起來（要在 publishSharedSettings 覆寫前先讀）
         let _savedHypno = null;
