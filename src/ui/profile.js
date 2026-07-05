@@ -354,7 +354,7 @@ import { HSC_Z } from '../util/zlayers.js';
             try {
                 PreferenceRegisterExtensionSetting({
                     Identifier: PREF_ID,
-                    ButtonText: isZh() ? 'HSC 催眠設定' : 'HSC Settings',
+                    ButtonText: ui('prefButton'),
                     // 依當前主題深淺自動選圖（BC 開啟擴充設定選單時呼叫一次）
                     Image: () => hscIconForTheme(),
                     load:   () => EXT.load(),

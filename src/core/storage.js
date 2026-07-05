@@ -75,13 +75,14 @@ import { resolveWhitelistNumbers } from '../ui/panel.js';
     const SND_LS_KEY = 'HSC_sounds';
     // ★ 本機備份鍵：每次成功存檔都同步寫一份到 localStorage（比照 BCX 的 backup）。
     //   伺服器端 ExtensionSettings 若被清空 / 登入時尚未載入，讀取端會從這裡還原並補回伺服器。
-    const SETTINGS_BACKUP_KEY = 'HSC_settings_backup';
+    // ★ 設定備份「依帳號分開」（設定跟帳號走；音樂庫才是跨帳號共用 → 用 SND_LS_KEY）。
+    //   避免 A 帳號的備份在 B 帳號登入時被還原成 A 的設定。
+    function _backupKey() {
+        const id = (typeof Player !== 'undefined' && Player && (Player.MemberNumber || Player.AccountName)) || 'anon';
+        return 'HSC_settings_backup_' + id;
+    }
     // ★ 載入完成前禁止存檔：避免「設定還沒讀到就先存出預設值」把帳號上的資料蓋掉（BCX 用 firstTimeInit 擋）。
     let _settingsLoaded = false;
-    // 把目前 CONFIG 壓縮存到本機備份
-    function _backupSettings() {
-        try { localStorage.setItem(SETTINGS_BACKUP_KEY, LZString.compressToBase64(JSON.stringify(serializeConfig()))); } catch (e) {}
-    }
     // 解析一份壓縮字串為 saved 物件（失敗回 null）
     function _decodeSaved(raw) {
         try { if (!raw) return null; const json = LZString.decompressFromBase64(raw); return json ? JSON.parse(json) : null; } catch (e) { return null; }
@@ -192,25 +193,37 @@ import { resolveWhitelistNumbers } from '../ui/panel.js';
 
     function loadSettings() {
         migrateFromIVH();   // 先把舊 IVH 資料搬到 HSC（並清除舊鍵）
+        // 時間戳比對：帳號(ExtensionSettings) vs 本機備份，取「較新」的那份。
+        //  正常兩者 ts 相同（同一次存檔同時寫入）。若帳號被清空/落後（ts 較小或為 0）而備份較新 →
+        //  代表帳號資料遺失，改用備份並補回帳號。
+        const esRaw = Player?.ExtensionSettings?.[ES_KEY];
+        const bkRaw = localStorage.getItem(_backupKey());
+        const esSaved = _decodeSaved(esRaw);
+        const bkSaved = _decodeSaved(bkRaw);
+        const esTs = (esSaved && +esSaved.ts) || 0;
+        const bkTs = (bkSaved && +bkSaved.ts) || 0;
+        let saved = null, rawUsed = null, restoreToAccount = false;
+        if (esSaved && esTs >= bkTs)      { saved = esSaved; rawUsed = esRaw; }                       // 帳號較新或相同 → 用帳號
+        else if (bkSaved)                 { saved = bkSaved; rawUsed = bkRaw; restoreToAccount = esTs < bkTs; }  // 備份較新 → 用備份（並補回帳號）
+        else if (esSaved)                 { saved = esSaved; rawUsed = esRaw; }                       // 只有帳號
         let loaded = false;
-        // ① 主來源：ExtensionSettings（跟帳號同步）
-        const esSaved = _decodeSaved(Player?.ExtensionSettings?.[ES_KEY]);
-        if (esSaved) { try { _applySaved(esSaved); loaded = true; } catch (e) { console.warn('🐈‍⬛ [HSC] 主設定套用失敗:', e.message); } }
-        // ② 主來源沒讀到（伺服器端被清空 / 登入時尚未載入 / 解析失敗）→ 退回本機備份
-        let fromBackup = false;
-        if (!loaded) {
-            const bkSaved = _decodeSaved(localStorage.getItem(SETTINGS_BACKUP_KEY));
-            if (bkSaved) {
-                try { _applySaved(bkSaved); loaded = true; fromBackup = true; console.log('🐈‍⬛ [HSC] ⚠️ 帳號設定為空/讀取失敗，已從本機備份還原'); } catch (e) {}
-            }
-        }
+        if (saved) { try { _applySaved(saved); loaded = true; } catch (e) { console.warn('🐈‍⬛ [HSC] 設定套用失敗:', e.message); } }
         if (!loaded) setConfig(makeDefaultConfig());   // 全新帳號：用預設
         _settingsLoaded = true;                        // ← 之後才允許存檔
         loadSounds();   // 音效改從 localStorage（跨帳號共用）
         setExpressionSets(CONFIG.expressionSets);
-        _backupSettings();   // 讀成功即刷新本機備份
-        // 從備份還原（代表帳號上沒有）→ 立即補回伺服器 ExtensionSettings，避免下次又是空的
-        if (fromBackup) { try { saveSettings(true); } catch (e) {} }
+        // 讓帳號與備份都同步為「較新的那份」
+        if (loaded && rawUsed) {
+            try { localStorage.setItem(_backupKey(), rawUsed); } catch (e) {}   // 刷新備份
+            if (restoreToAccount) {
+                try {
+                    if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
+                    Player.ExtensionSettings[ES_KEY] = rawUsed;
+                    if (typeof ServerPlayerExtensionSettingsSync === 'function') ServerPlayerExtensionSettingsSync(ES_KEY);
+                    console.log(`🐈‍⬛ [HSC] ⚠️ 帳號資料落後/遺失（帳號 ts=${esTs} < 備份 ts=${bkTs}），已從本機備份還原並補回帳號`);
+                } catch (e) {}
+            }
+        }
     }
 
     let _saveTimer = null;
@@ -221,7 +234,9 @@ import { resolveWhitelistNumbers } from '../ui/panel.js';
             try {
                 if (!_settingsLoaded || !Player) return;
                 if (!Player.ExtensionSettings) Player.ExtensionSettings = {}; // 從未有設定的帳號需自建
-                const raw = JSON.stringify(serializeConfig());
+                const cfg = serializeConfig();
+                cfg.ts = Date.now();   // 存檔時間戳（帳號與本機備份共用同一個 → 供載入時比對是否遺失）
+                const raw = JSON.stringify(cfg);
                 const compressed = LZString.compressToBase64(raw);
                 // 存前驗證：壓縮→解壓→比對，壞了就不寫（不覆蓋帳號上的好資料）
                 const check = _decodeSaved(compressed);
@@ -230,7 +245,7 @@ import { resolveWhitelistNumbers } from '../ui/panel.js';
                 if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                     ServerPlayerExtensionSettingsSync(ES_KEY);
                 }
-                try { localStorage.setItem(SETTINGS_BACKUP_KEY, compressed); } catch (e) {}   // 同步本機備份
+                try { localStorage.setItem(_backupKey(), compressed); } catch (e) {}   // 同步本機備份
                 saveSounds();   // 音效另存 localStorage（跨帳號共用）
                 setExpressionSets(CONFIG.expressionSets);
             } catch (e) {

@@ -395,6 +395,7 @@
             RU: '$me разум туманится\n$me взгляд пустеет…\n$me сознание погружается\n$me слегка покачивается, в трансе\n$me выражение становится отрешённым',
             UA: '$me розум туманіє\n$me погляд порожніє…\n$me свідомість занурюється\n$me трохи похитується, у трансі\n$me вираз стає відстороненим',
         },
+        'prefButton': { TW: 'HSC 催眠設定', CN: 'HSC 催眠设置', EN: 'HSC Settings', JP: 'HSC 設定', KR: 'HSC 설정', DE: 'HSC-Einstellungen', FR: 'Paramètres HSC', RU: 'Настройки HSC', UA: 'Налаштування HSC' },
     };
 
     window.Liko.__Sys_i18n__.register('HSC', HSC_STRINGS);

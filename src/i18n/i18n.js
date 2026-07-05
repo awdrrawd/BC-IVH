@@ -65,6 +65,7 @@ import { assetUrl } from '../util/icons.js';
 
     // 引擎未載入時的中文 fallback（與 HSC-i18n.js 的 TW 一致）
     const HSC_FALLBACK = {
+        prefButton: 'HSC 催眠設定',
         loaded: 'HSC v{v} 已載入 ✅\n/hsc help 說明 | /hsc setting 設定頁',
         help: '🌀 HSC v{v} 指令列表：\n  /hsc setting       — 開啟偏好設定頁\n  /hsc show          — 顯示控制面板\n  /hsc test [文字]   — 立即觸發效果\n  /hsc climax        — 測試高潮特效\n  /hsc depth [1~3]   — 測試催眠深度效果\n  /hsc calibrate     — 頭部座標校正面板\n  /hsc help          — 顯示此說明',
         cmdUnknown: '⚠️ [HSC] 未知指令「{sub}」，輸入 /hsc help 查看說明',
