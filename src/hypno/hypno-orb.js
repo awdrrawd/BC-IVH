@@ -14,8 +14,26 @@
 
 import { CONFIG, ES_KEY } from '../core/config.js';
 import { assetUrl } from '../util/icons.js';
-import { getHypnoValue, isForced } from './hypno.js';
+import { _charAnchor, getBodyAnchorBc } from '../util/geometry.js';
+import { getHypnoValue, isForced, getWakeRemainingMs } from './hypno.js';
 import { ui } from '../i18n/i18n.js';
+
+// 把秒數格式化為 m:ss（分可超過 60，例如 125:30）；<0 視為 0
+function _fmtTime(sec) {
+    const s = Math.max(0, Math.round(sec));
+    const m = Math.floor(s / 60), ss = s % 60;
+    return m + ':' + String(ss).padStart(2, '0');
+}
+
+// 他人清醒倒數的本地平滑：記住每位成員「上次收到的剩餘秒 r 與收到時間 t」，
+//  之後每幀本地遞減 → 不必每秒公告（省伺服器）。收到的 r 變了才重置。
+const _wakeSeen = {};   // { member: { r, t } }
+function _otherWakeSec(member, r) {
+    const now = Date.now();
+    const s = _wakeSeen[member];
+    if (!s || s.r !== r) { _wakeSeen[member] = { r, t: now }; return r; }
+    return Math.max(0, r - (now - s.t) / 1000);
+}
 
 // ── 素材預載 ──
 // HSC-Hypnosis.png 為 200×75 的 1×2 精靈：左格＝外框（透明底），右格＝填滿的心形遮罩（用來裁水位形狀）。
@@ -76,14 +94,15 @@ function _roundRect(ctx, x, y, w, h, r) {
 }
 
 // ── 頭上催眠符咒（他人強控時顯示；含泛光與微震動）──
-function _drawTalisOnHead(C, charX, charY, zoom, color, style) {
+//  改用共用定位 getBodyAnchorBc（含 ECHO 貼貼等活動 X 位移）→ 符咒會跟著人物實際位置，
+//  再用 asset Y=120（額頭）定高；要微調高度就改這個 120 或加 offY。
+function _drawTalisOnHead(C, color, style) {
     const cv = _tintedTalis(color, style);
     if (!cv) return;
+    const head = getBodyAnchorBc(C, 250, 120);   // 頭部（含活動位移）
+    if (!head) return;
     const ratio = (typeof C?.HeightRatio === 'number') ? C.HeightRatio : 1;
-    const xOff = (typeof CharacterAppearanceXOffset === 'function') ? CharacterAppearanceXOffset(C, ratio) : 500 * (1 - ratio) / 2;
-    const yOff = (typeof CharacterAppearanceYOffset === 'function') ? CharacterAppearanceYOffset(C, ratio) : 0;
-    const headX = charX + zoom * (xOff + 250 * ratio);      // 頭部水平中心
-    const headY = charY + zoom * (yOff + 120 * ratio);      // 額頭附近
+    const zoom = head.zoom || 1;
     const tw = 46 * zoom * ratio, th = tw / T_AR;           // 符咒偏長
     const jx = (Math.random() - 0.5) * 4 * zoom, jy = (Math.random() - 0.5) * 4 * zoom;   // 微震動
     const ctx = MainCanvas;
@@ -91,14 +110,14 @@ function _drawTalisOnHead(C, charX, charY, zoom, color, style) {
     ctx.shadowColor = color || '#f500b4';
     ctx.shadowBlur = 12 * zoom;
     ctx.globalAlpha = 0.95;
-    ctx.drawImage(cv, headX - tw / 2 + jx, headY - th / 2 + jy, tw, th);
+    ctx.drawImage(cv, head.x - tw / 2 + jx, head.y - th / 2 + jy, tw, th);
     ctx.restore();
 }
 
 // ── 進度球本體 ──
 //  圖層順序（下→上）：泛光 → 水位 → 原圖(外框) → 中心數值。
 //  水位畫在「原圖之下」，透過愛心鏤空的內部透出來，原圖維持全不透明 → 外框清晰。
-function _drawOrb(x, y, w, h, pct, forced) {
+function _drawOrb(x, y, w, h, pct, forced, centerText) {
     if (!_heartReady) return;
     const ctx = MainCanvas;
     const cx = x + w / 2, cyc = y + h / 2;
@@ -145,10 +164,10 @@ function _drawOrb(x, y, w, h, pct, forced) {
     const f = _cell(0);
     ctx.drawImage(_heartImg, f.sx, f.sy, f.sw, f.sh, x, y, w, h);
 
-    // 4) 中心數值（較小、較細）
+    // 4) 中心數值（未強控＝百分比；強控＝清醒倒數時間 / ∞）
     ctx.save();
-    const txt = String(Math.round(p * 100));
-    const fs = Math.max(8, Math.round(h * 0.32));
+    const txt = (centerText != null) ? String(centerText) : String(Math.round(p * 100));
+    const fs = Math.max(7, Math.round(h * (txt.length > 3 ? 0.24 : 0.32)));   // 時間字串較長 → 縮小
     ctx.font = `500 ${fs}px "Segoe UI", Arial, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -194,9 +213,14 @@ export function drawHypnoStatusForChar(C, charX, charY, zoom) {
         if (typeof MainCanvas === 'undefined' || !MainCanvas) return;
         if (!CONFIG.enabled) return;                 // 總開關關 → 進度球/符咒一律不畫
         if (C?.MemberNumber == null) return;
+        // 用 DrawCharacter 記錄的真實繪製座標（含 ECHO 貼貼等活動 X 位移），退回 overlay 座標 →
+        //  進度球與頭上符咒都跟著人物實際位置。
+        const anchor = _charAnchor[C.MemberNumber];
+        if (anchor && (Date.now() - anchor.t < 1000)) { charX = anchor.x; charY = anchor.y; zoom = anchor.zoom; }
         const isMe = Player?.MemberNumber != null && C.MemberNumber === Player.MemberNumber;
 
         let v, forced, color, style, showOrb, showTalis;
+        let wakeInf = false, wakeSec = 0, wakeBase = 1;   // 強控時的清醒倒數（∞ / 剩餘秒 / 基底秒）
         if (isMe) {
             if (!CONFIG.hypnoEnabled) return;            // 自己：催眠狀態關 → 不顯示
             v = getHypnoValue();
@@ -205,6 +229,12 @@ export function drawHypnoStatusForChar(C, charX, charY, zoom) {
             style = CONFIG.hypnoAnimStyle || 1;
             showOrb = true;
             showTalis = !!CONFIG.headTalisman && forced;   // 自己也用同一支 canvas 符咒 → 與他人尺寸/位置一致
+            if (forced) {
+                const rem = getWakeRemainingMs();
+                wakeInf = !isFinite(rem);
+                wakeSec = wakeInf ? 0 : rem / 1000;
+                wakeBase = Math.max(1, (CONFIG.autoWakeMin || 30) * 60);
+            }
         } else {
             const hs = C?.OnlineSharedSettings?.[ES_KEY]?.hypno;
             if (!hs) return;                             // 對方沒裝 HSC / 沒公告
@@ -214,22 +244,38 @@ export function drawHypnoStatusForChar(C, charX, charY, zoom) {
             style = hs.s || 1;
             showOrb = !!CONFIG.seeOthersHypno;
             showTalis = !!CONFIG.seeOthersTalisman && forced;
+            if (forced) {
+                wakeInf = !!hs.inf;
+                wakeSec = wakeInf ? 0 : _otherWakeSec(C.MemberNumber, Math.max(0, hs.r || 0));   // 本地平滑倒數
+                wakeBase = Math.max(1, hs.rb || 1);
+            }
         }
 
         // 進度球（自己讀執行期值、他人讀公告值；有催眠值或強控時顯示）
         //  尺寸：原圖 100×75 的 75%（= 75×56，× Zoom）；置中於 LSCG 圖示欄再右移 5、底邊在 LSCG 上方不重疊。
         if (showOrb && (v > 0 || forced)) {
-            const pct = v / 100;   // 水位／數值反映真實催眠值；強控只改變泛光顏色與脈動
+            // 未強控：水位＝催眠值%、中心＝百分比、提示＝進度。
+            // 強控：水位＝剩餘/基底、中心＝清醒倒數時間（∞ 則滿水＋∞）、提示＝清醒時間。
+            let pct, centerText, tipText;
+            if (forced) {
+                pct = wakeInf ? 1 : Math.max(0, Math.min(1, wakeSec / wakeBase));
+                centerText = wakeInf ? '∞' : _fmtTime(wakeSec);
+                tipText = wakeInf ? ui('hscOrbTipInf') : ui('hscOrbTipTime', { t: _fmtTime(wakeSec) });
+            } else {
+                pct = v / 100;
+                centerText = String(Math.round(v));
+                tipText = ui('hscOrbTip', { n: Math.round(v) });
+            }
             const w = 75 * zoom, h = 56 * zoom;
             const x = charX + 100 * zoom - w / 2;
             const y = charY + 95 * zoom - h;
-            _drawOrb(x, y, w, h, pct, forced);
+            _drawOrb(x, y, w, h, pct, forced, centerText);
             if (typeof MouseIn === 'function' && MouseIn(x, y, w, h)) {
-                _drawTooltip(ui('hscOrbTip', { n: Math.round(pct * 100) }), x + w, y + h / 2);   // 物件右側、垂直置中
+                _drawTooltip(tipText, x + w, y + h / 2);   // 物件右側、垂直置中
             }
         }
 
         // 頭上符咒（強控中；自己與他人用同一支繪製 → 尺寸/位置一致）。獨立於進度球，互不影響。
-        if (showTalis) _drawTalisOnHead(C, charX, charY, zoom, color, style);
+        if (showTalis) _drawTalisOnHead(C, color, style);
     } catch (e) { /* 靜默，避免中斷 BC 繪製 */ }
 }

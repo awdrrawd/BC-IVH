@@ -90,6 +90,8 @@ import { resolveWhitelistNumbers } from '../ui/panel.js';
     // 套用一份 saved 設定（含各種舊版欄位遷移）
     function _applySaved(saved) {
         setConfig(mergeDefaults(makeDefaultConfig(), saved));
+        // 舊版 nameCensor(布林) → 三態字串（true→僅玩家 / false→關）
+        if (typeof CONFIG.nameCensor === 'boolean') CONFIG.nameCensor = CONFIG.nameCensor ? 'player' : 'off';
         // 舊版編輯權限遷移 → editModes.catalyst（催眠文本）
         if (saved.editModes === undefined) {
             let m = 'off';
@@ -275,7 +277,7 @@ import { resolveWhitelistNumbers } from '../ui/panel.js';
             //   不合權限者拿不到內容（比照 BCX 的做法）。
             Player.OnlineSharedSettings[ES_KEY] = {
                 v: MOD_VER,
-                hypno: prevHypno || { v: 0, f: false, c: '#f500b4', s: 1 },
+                hypno: prevHypno || { v: 0, f: false, c: '#f500b4', s: 1, r: 0, inf: false, rb: 1 },
                 edit: anyEditable,                       // profile 按鈕是否亮起
                 editModes: { catalyst: em.catalyst || 'off', status: em.status || 'off', trigger: em.trigger || 'off', wake: em.wake || 'off', response: em.response || 'off', allowed: em.allowed || 'off' },
                 wl: needWl ? Array.from(resolveWhitelistNumbers()) : [],
@@ -311,12 +313,14 @@ import { resolveWhitelistNumbers } from '../ui/panel.js';
             _hypnoPubAt = Date.now();
         } catch (e) {}
     }
-    function publishHypnoState(v, forced, color, style, immediate = false) {
+    function publishHypnoState(v, forced, color, style, immediate = false, remSec = 0, inf = false, baseSec = 0) {
         try {
             const val = Math.max(0, Math.min(100, Math.round(v || 0)));
             const bucket = Math.round(val / 5) * 5;          // 量化到 5%，減少公告次數
-            const payload = { v: bucket, f: !!forced, c: color || '#f500b4', s: style || 1 };
-            const key = `${payload.v}|${payload.f}|${payload.c}|${payload.s}`;
+            //  r=剩餘清醒秒數、inf=無自動清醒(∞)、rb=水位基底秒（他人算填滿比例＋本地平滑倒數用）
+            const payload = { v: bucket, f: !!forced, c: color || '#f500b4', s: style || 1,
+                              r: Math.max(0, Math.round(remSec || 0)), inf: !!inf, rb: Math.max(1, Math.round(baseSec || 1)) };
+            const key = `${payload.v}|${payload.f}|${payload.c}|${payload.s}|${payload.r}|${payload.inf}`;
             const forcedChanged = _hypnoPubForced !== payload.f;
             if (key === _hypnoPubKey && !immediate) return;   // 沒有實質變化
             if (_hypnoPubTimer) { clearTimeout(_hypnoPubTimer); _hypnoPubTimer = null; }

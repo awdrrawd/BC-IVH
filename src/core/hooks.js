@@ -3,7 +3,7 @@ import { hscBlurLevel, hscTintColor } from '../effects/atmosphere.js';
 import { CONFIG, modApi } from './config.js';
 import { triggerPinkFlash } from '../effects/pink-flash.js';
 import { triggerClimaxEffect } from '../effects/climax.js';
-import { _charDrawPos, playerDrawPos } from '../util/geometry.js';
+import { _charAnchor, _charDrawPos, playerDrawPos } from '../util/geometry.js';
 import { drawHypnoStatusForChar } from '../hypno/hypno-orb.js';
 import { effectScale } from '../util/util.js';
 
@@ -156,9 +156,34 @@ import { effectScale } from '../util/util.js';
     }
 
 
+    // ════════════════════════════════════════
+    //  記錄每個角色 DrawCharacter 的「真實繪製座標」到 _charAnchor（含 ECHO 貼貼等活動 X 位移）。
+    //  面部識別障礙就是靠 DrawCharacter 座標永遠對得準；讓喘氣/符咒等效果也改用它（getBodyAnchorBc/Screen）。
+    // ════════════════════════════════════════
+    function hookCharAnchor() {
+        if (!modApi) return;
+        try {
+            modApi.hookFunction('DrawCharacter', 1, (args, next) => {
+                const r = next(args);
+                try {
+                    const C = args[0], X = args[1], Y = args[2], Zoom = args[3];
+                    if (C && C.MemberNumber != null && typeof X === 'number'
+                        && typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
+                        _charAnchor[C.MemberNumber] = { x: X, y: Y, zoom: Zoom, t: Date.now() };
+                    }
+                } catch (e) {}
+                return r;
+            });
+        } catch (e) {
+            console.warn('🐈‍⬛ [HSC] ⚠️ DrawCharacter 座標記錄 hook 失敗:', e.message);
+        }
+    }
+
+
 export {
     hookDrawCharacter,
     hookAtmosphere,
     hookOrgasmStage,
+    hookCharAnchor,
     _hookOrgasmPoll,
 };

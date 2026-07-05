@@ -69,19 +69,23 @@ import { ui } from '../i18n/i18n.js';
             arousalStepVoice: 5,
             arousalStepDepth: 5,
 
-            // ── 催眠值（0~100，每 12 秒 -1）：語音 / 日常干擾分開；催眠狀態關則不成長 ──
+            // ── 催眠值（0~100，未強控時每 12 秒 -1）：語音 / 日常干擾分開；累積到 100% → 進入催眠狀態 ──
             hypnoEnabled:    false, // 催眠狀態 啟/停用
             hypnoVoiceStep:  5,     // 語音催眠每次 +（0~20）
             hypnoDepthStep:  5,     // 日常干擾每次 +（0~20）
             hypnoClimax:     false, // 催眠高潮：陷入強控時觸發一次高潮（因催眠而達到高潮）
-            autoWake:        true,  // 自動清醒（催眠值 <15% 時解除強控）
-            forcedGrowthDiv: 1,     // 強控中催眠值成長 = 原值 × N/10（預設 1 → 1/10）
+            // ── 催眠狀態（強控）改為時間制：進入時清醒倒數＝自動清醒分鐘（滿），倒數到 0 或聽到清醒詞 → 清醒且催眠值歸 0 ──
+            autoWake:        true,  // 自動清醒 開/關：關 → 不自動醒（∞），只能靠清醒詞
+            autoWakeMin:     30,    // 自動清醒分鐘（15~99）：進入強控時的清醒倒數基底
+            hypnoExtend:     true,  // 催眠延長 開/關：強控中再被觸發（語音/日常）→ 延長清醒時間
+            hypnoExtendSec:  60,    // 催眠延長秒數（10~990，10 秒一格）：每次觸發延長的秒數
+            forcedGrowthDiv: 1,     // （已停用）舊：強控中催眠值成長 = 原值 × N/10；保留欄位相容舊存檔
             hypnoAnimEnabled: false, // 催眠動畫（符咒動畫等；預留）
             hypnoAnimStyle:   1,     // 符咒樣式 1~12（HSC-Status-Code1.png 的 2×6 格）
             hypnoAnimColor:   '#f500b4', // 符咒染色（mask 染色，顏色 100% 準）
             headTalisman:     false, // 頭上貼符咒（強控中額頭常駐符咒且持續震動）
             faceCensor:       false, // 面部識別障礙（強控中看不清他人的臉）
-            nameCensor:       false, // 名稱識別障礙（強控中看不清他人的名字/ID）
+            nameCensor:       'off', // 名稱識別障礙：'off' 關 / 'player' 僅玩家 / 'network' 含關係網（主人、戀人一併遮蔽）
             faceCensorStyle:  'circle', // 面部塗鴉樣式：'circle' 圓圈 / 'line' 線條（二選一）
             crowd:            false, // 顯示人群（強控中畫面下緣圍觀人群）
             // ── 強控中的訊息類效果（僅強控時作用）──

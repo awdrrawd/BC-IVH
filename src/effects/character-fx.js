@@ -1,7 +1,7 @@
 // ── auto-wired cross-module imports ──
 import { CONFIG } from '../core/config.js';
 import { _emitBreathPuff, breathIntervalMs } from './breath.js';
-import { BODY_PANT_DY, DEPTH_PANT_EXTRA, _cachedRect, _cachedScaleX, _charDrawPos, bcToScreen, otherCharMouthScreenPos, refreshCanvasCache } from '../util/geometry.js';
+import { BODY_PANT_DY, DEPTH_PANT_EXTRA, HEAD_OFFSET, _cachedRect, _cachedScaleX, _charDrawPos, bcToScreen, getBodyAnchorScreen, otherCharMouthScreenPos, refreshCanvasCache } from '../util/geometry.js';
 import { getOverlay } from '../util/util.js';
 import { HSC_Z } from '../util/zlayers.js';
 
@@ -284,10 +284,11 @@ function addArousal(kind) {
                     ? ChatRoomCharacter.find(c => c && c.MemberNumber === memberNum) : null;
                 // 對方在目前畫面（最近 1 秒內有被繪製）才顯示
                 if (C && dp && _cachedRect && (Date.now() - dp.t < 1000)) {
-                    const m  = otherCharMouthScreenPos(C, dp);
                     const ss = Math.max(0.5, Math.min(2.2, (dp.zoom || 1) * (_cachedScaleX || 0.3) * 2.4));
-                    // 與自身「身上喘氣」相同的總偏移（BODY_PANT_DY + DEPTH_PANT_EXTRA + 5）→ A 看到的位置與 B 自己看到的一致
-                    _emitBreathPuff(overlay, { x: m.x, y: m.y + BODY_PANT_DY + DEPTH_PANT_EXTRA + 5, ss });
+                    // 用共用定位（含 ECHO 貼貼等 X 位移）＋與自身相同的身體偏移 → A 看到的位置與 B 自己看到的一致
+                    const m = getBodyAnchorScreen(C, 250 + HEAD_OFFSET.x, HEAD_OFFSET.mouthAY, 0, BODY_PANT_DY + DEPTH_PANT_EXTRA + 5)
+                        || (() => { const p = otherCharMouthScreenPos(C, dp); return { x: p.x, y: p.y + BODY_PANT_DY + DEPTH_PANT_EXTRA + 5 }; })();
+                    if (m) _emitBreathPuff(overlay, { x: m.x, y: m.y, ss });
                 }
             } catch (e) {}
             setTimeout(loop, breathIntervalMs(_otherPantInten[memberNum] || 1));

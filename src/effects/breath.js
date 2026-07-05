@@ -4,7 +4,7 @@
 //   _emitBreathPuff / breathIntervalMs 也給「看到他人喘氣」等重複調用。
 // ════════════════════════════════════════
 import { CONFIG } from '../core/config.js';
-import { BODY_PANT_DY, DEPTH_PANT_EXTRA, _cachedScaleX, getPlayerHeadScreenPos, getPlayerMouthScreenPos, playerDrawPos } from '../util/geometry.js';
+import { BODY_PANT_DY, DEPTH_PANT_EXTRA, HEAD_OFFSET, _cachedScaleX, getBodyAnchorScreen, getPlayerHeadScreenPos, getPlayerMouthScreenPos, playerDrawPos } from '../util/geometry.js';
 import { getOverlay } from '../util/util.js';
 import { HSC_Z } from '../util/zlayers.js';
 
@@ -24,11 +24,18 @@ export function breathIntervalMs(intensity) {
 //  ignoreHeadshot=false + 開啟中央頭像 → 從「中央頭像」的嘴部噴氣（讓頭像會喘氣）
 export function getBreathMouths(ignoreHeadshot) {
     const useHead = !ignoreHeadshot && CONFIG.centerHeadshot;   // 從中央頭像噴氣
-    const head  = getPlayerHeadScreenPos(ignoreHeadshot);
-    const mouth = getPlayerMouthScreenPos(ignoreHeadshot);
-    // 頭像：頭像嘴部 +120（往下對準嘴）；身上：身體偏移 +5
-    const dy = useHead ? 70 : (BODY_PANT_DY + DEPTH_PANT_EXTRA + 5);
-    return [{ x: head.x, y: mouth.y + dy, ss: _breathSizeScale() }];
+    if (useHead) {
+        // 中央頭像：用頭像嘴部（固定中央，不需活動位移）+70
+        const head  = getPlayerHeadScreenPos(false);
+        const mouth = getPlayerMouthScreenPos(false);
+        return [{ x: head.x, y: mouth.y + 70, ss: _breathSizeScale() }];
+    }
+    // 身上喘氣：用共用定位 getBodyAnchorScreen（含 ECHO 貼貼等 X 位移）＋身體偏移
+    const m = getBodyAnchorScreen(Player, 250 + HEAD_OFFSET.x, HEAD_OFFSET.mouthAY, 0, BODY_PANT_DY + DEPTH_PANT_EXTRA + 5);
+    if (m) return [{ x: m.x, y: m.y, ss: _breathSizeScale() }];
+    // 退回舊法（拿不到 anchor 時）
+    const head  = getPlayerHeadScreenPos(true), mouth = getPlayerMouthScreenPos(true);
+    return [{ x: head.x, y: mouth.y + BODY_PANT_DY + DEPTH_PANT_EXTRA + 5, ss: _breathSizeScale() }];
 }
 
 // 噴一口氣：倒三角扇形（由嘴部往上展開），每團一次性 由小變大、由濃變淡，約 0.5 秒

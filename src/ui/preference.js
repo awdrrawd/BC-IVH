@@ -856,15 +856,30 @@ import { HSC_Z } from '../util/zlayers.js';
             const CX = 750;            // 控制欄 X
             const BW = 116;            // 按鈕寬度（與其他分頁一致）
             this.title(cy, ui('tab_state'), ''); cy += 44;
+            const leftLbl = (txt, x) => { const p = MainCanvas.textAlign; MainCanvas.textAlign = 'left'; DrawText(txt, x, this._y(cy), 'Black', ''); MainCanvas.textAlign = p; };
+            // 自動清醒：開/關 ＋（開啟時）分鐘 BAR（15~99）＝進入強控的清醒倒數基底
             this.title(cy, ui('autoWakeLabel'), ui('autoWakeD'));
             this.toggle(CX, cy - 20, BW, 40, CONFIG.autoWake ? ui('on') : ui('off'), CONFIG.autoWake, ui('autoWakeD'),
                 () => { CONFIG.autoWake = !CONFIG.autoWake; saveSettings(); });
             cy += 58;
-            this.title(cy, ui('forcedGrowthLabel'), ui('forcedGrowthD'));
-            this.slider(CX, cy - 17, 300, CONFIG.forcedGrowthDiv, 1, 10, 1, ui('forcedGrowthD'),
-                v => { CONFIG.forcedGrowthDiv = Math.round(v); }, () => saveSettings());
-            { const p = MainCanvas.textAlign; MainCanvas.textAlign = 'left'; DrawText((CONFIG.forcedGrowthDiv || 1) + '/10', CX + 312, this._y(cy), 'Black', ''); MainCanvas.textAlign = p; }
-            cy += 58 + 12;
+            if (CONFIG.autoWake) {
+                this.slider(CX, cy - 17, 300, CONFIG.autoWakeMin || 30, 15, 99, 1, ui('autoWakeD'),
+                    v => { CONFIG.autoWakeMin = Math.round(v); }, () => saveSettings());
+                leftLbl((CONFIG.autoWakeMin || 30) + ' ' + ui('minUnit'), CX + 312);
+                cy += 58;
+            }
+            // 催眠延長：開/關 ＋（開啟時）秒數 BAR（10~990，10 秒一格）＝強控中每次觸發延長秒數
+            this.title(cy, ui('hypnoExtendLabel'), ui('hypnoExtendD'));
+            this.toggle(CX, cy - 20, BW, 40, CONFIG.hypnoExtend ? ui('on') : ui('off'), CONFIG.hypnoExtend, ui('hypnoExtendD'),
+                () => { CONFIG.hypnoExtend = !CONFIG.hypnoExtend; saveSettings(); });
+            cy += 58;
+            if (CONFIG.hypnoExtend) {
+                this.slider(CX, cy - 17, 300, CONFIG.hypnoExtendSec || 60, 10, 990, 10, ui('hypnoExtendD'),
+                    v => { CONFIG.hypnoExtendSec = Math.round(v / 10) * 10; }, () => saveSettings());
+                leftLbl((CONFIG.hypnoExtendSec || 60) + ' ' + ui('secUnit'), CX + 312);
+                cy += 58;
+            }
+            cy += 12;
             // 效果設定
             this.title(cy, ui('sec_effects'), ''); cy += 40;
             // 催眠動畫：開/關
@@ -902,10 +917,16 @@ import { HSC_Z } from '../util/zlayers.js';
                 this.btn(bx + 170, cy - 20, 44, 40, '▶', 'White', ui('fx_faceCensorD'), swap, fdk);
             }
             cy += 52;
-            // 名稱識別障礙（演示）
+            // 名稱識別障礙：三態（關 / 僅玩家 / 含關係網）
             this.title(cy, ui('fx_nameCensor'), ui('fx_nameCensorD'));
-            this.toggle(CX, cy - 20, BW, 40, CONFIG.nameCensor ? ui('on') : ui('off'), CONFIG.nameCensor, ui('fx_nameCensorD'),
-                () => { CONFIG.nameCensor = !CONFIG.nameCensor; saveSettings(); }, 'nameCensor');
+            {
+                const ncOpts = [['off', ui('censorOff')], ['player', ui('nameCensorPlayer')], ['network', ui('nameCensorNetwork')]];
+                ncOpts.forEach(([val, label], i) => {
+                    const active = (CONFIG.nameCensor || 'off') === val;
+                    this.btn(CX + i * 122, cy - 20, 116, 40, label, active ? '#8E44A1' : 'White', ui('fx_nameCensorD'),
+                        () => { CONFIG.nameCensor = val; saveSettings(); }, val === 'off' ? undefined : 'nameCensor');
+                });
+            }
             cy += 52;
             // 顯示人群（演示）
             this.title(cy, ui('fx_crowd'), ui('fx_crowdD'));

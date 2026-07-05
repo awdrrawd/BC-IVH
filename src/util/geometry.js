@@ -94,6 +94,33 @@ import { CONFIG } from '../core/config.js';
         };
     }
 
+    // ── DrawCharacter 記錄的「真實繪製座標」（含 ECHO 貼貼等活動造成的 X 位移）──
+    //  overlay(ChatRoomCharacterViewDrawOverlay) 的座標不含這類活動位移；DrawCharacter
+    //  才是角色最終畫上去的位置（面部識別障礙就是靠它、位置永遠正確）。
+    const _charAnchor = {};   // { member: {x, y, zoom, t} }
+
+    // ★ 專用定位函數：取角色 asset 座標 (ax, ay) 的「BC 畫布座標」。
+    //   優先用 DrawCharacter 記錄（含活動 X 位移），退回 overlay 座標。
+    //   offX/offY 為 BC 畫布座標的額外偏移，供各效果做最終位置校正（喘氣/符咒高度…）。
+    //   回傳 { x, y, zoom } 或 null。所有需要「貼在角色身上」的效果都應改用這個。
+    function getBodyAnchorBc(C, ax, ay, offX = 0, offY = 0) {
+        const member = (C && C.MemberNumber != null) ? C.MemberNumber : null;
+        const isMe = member != null && typeof Player !== 'undefined' && Player && member === Player.MemberNumber;
+        const a = (member != null) ? _charAnchor[member] : null;
+        const fresh = a && (Date.now() - a.t < 1000);
+        const dp = fresh ? a : (isMe ? playerDrawPos : (member != null ? _charDrawPos[member] : null));
+        if (!dp || dp.valid === false || typeof dp.x !== 'number') return null;
+        const bc = bodyAssetToBc(ax, ay, C || Player, dp);
+        return { x: bc.x + offX, y: bc.y + offY, zoom: dp.zoom };
+    }
+    // 同上但回傳「螢幕像素座標」（offX/offY 為螢幕像素偏移），給 DOM 效果（喘氣等）用。
+    function getBodyAnchorScreen(C, ax, ay, offX = 0, offY = 0) {
+        const bc = getBodyAnchorBc(C, ax, ay, 0, 0);
+        if (!bc) return null;
+        const s = bcToScreen(bc.x, bc.y);
+        return { x: s.x + offX, y: s.y + offY, zoom: bc.zoom };
+    }
+
     // 其他角色嘴部螢幕座標（給「看到他人喘氣」用）
     function otherCharMouthScreenPos(C, dp) {
         const bc = bodyAssetToBc(250 + HEAD_OFFSET.x, HEAD_OFFSET.mouthAY, C, dp);
@@ -173,6 +200,9 @@ export {
     BODY_PANT_DY,
     DEPTH_PANT_EXTRA,
     bodyAssetToBc,
+    _charAnchor,
+    getBodyAnchorBc,
+    getBodyAnchorScreen,
     otherCharMouthScreenPos,
     isPlayerOnCurrentPage,
     getPlayerHeadScreenPos,

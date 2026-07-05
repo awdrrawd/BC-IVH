@@ -112,14 +112,23 @@ function _drawNameCensor(C, X, Y, Zoom, ctx) {
 
 // profile：遮掉名字 / 暱稱 / ID（攔 DrawText / DrawTextFit 後補畫黑塊）
 function _maskProfileToken(Text, X, Y, centered) {
-    if (typeof Text !== 'string' || !CONFIG.nameCensor || !_active()) return;
+    if (typeof Text !== 'string' || (CONFIG.nameCensor || 'off') === 'off' || !_active()) return;
     if (!(CurrentScreen === 'InformationSheet' || CurrentScreen === 'OnlineProfile')) return;
     const C = (typeof InformationSheetSelection !== 'undefined') ? InformationSheetSelection : null;
     if (!C || (typeof C.IsPlayer === 'function' && C.IsPlayer())) return;
     const nick = (typeof CharacterNickname === 'function') ? CharacterNickname(C) : null;
-    const tokens = [C.Name, nick, C.MemberNumber != null ? String(C.MemberNumber) : null].filter(Boolean);
+    const tokens = [C.Name, nick, C.MemberNumber != null ? String(C.MemberNumber) : null];
+    // 含關係網：主人、戀人的名字/編號也一併遮蔽
+    if (CONFIG.nameCensor === 'network') {
+        const own = C.Ownership;
+        if (own) { tokens.push(own.MemberName); if (own.MemberNumber != null) tokens.push(String(own.MemberNumber)); }
+        (Array.isArray(C.Lovership) ? C.Lovership : []).forEach(l => {
+            if (l) { tokens.push(l.MemberName); if (l.MemberNumber != null) tokens.push(String(l.MemberNumber)); }
+        });
+    }
+    const toks = tokens.filter(Boolean);
     let idx = -1, tok = null;
-    for (const t of tokens) { const i = Text.indexOf(t); if (i >= 0) { idx = i; tok = t; break; } }
+    for (const t of toks) { const i = Text.indexOf(t); if (i >= 0) { idx = i; tok = t; break; } }
     if (idx < 0) return;
     const prev = MainCanvas.font;
     MainCanvas.font = (typeof CommonGetFont === 'function') ? CommonGetFont(36) : '36px Arial';
@@ -146,7 +155,7 @@ export function hookCensor() {
                     const inChat = typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom';
                     const inProfile = typeof CurrentScreen !== 'undefined' && (CurrentScreen === 'InformationSheet' || CurrentScreen === 'OnlineProfile');
                     if (CONFIG.faceCensor && (inChat || inProfile)) _drawFaceCensor(C, X, Y, Zoom, ctx);
-                    if (CONFIG.nameCensor && inChat) _drawNameCensor(C, X, Y, Zoom, ctx);
+                    if ((CONFIG.nameCensor || 'off') !== 'off' && inChat) _drawNameCensor(C, X, Y, Zoom, ctx);
                 }
             } catch (e) {}
             return r;

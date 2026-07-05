@@ -2,7 +2,7 @@
 import { hookChatInput, printChat } from './commands.js';
 import { ES_KEY, MOD_VER, modApi, setModApi } from './config.js';
 import { _depthTimer, applyDepthLoop, hookGhostDraw, setDepthTimer } from '../effects/depth.js';
-import { hookAtmosphere, hookDrawCharacter, hookOrgasmStage } from './hooks.js';
+import { hookAtmosphere, hookCharAnchor, hookDrawCharacter, hookOrgasmStage } from './hooks.js';
 import { hookHypnoSpeech } from '../hypno/hypno-speech.js';
 import { startHypnoDecay, restoreHypnoState } from '../hypno/hypno.js';
 import { ensureI18n, ui } from '../i18n/i18n.js';
@@ -162,7 +162,7 @@ import { ensureColorAPI } from '../util/icons.js';
         try {
             const hs = _savedHypno;
             console.log('🐈‍⬛ [HSC] 登入還原催眠狀態:', hs);
-            if (hs && ((hs.v || 0) > 0 || hs.f)) restoreHypnoState(hs.v, hs.f);
+            if (hs && ((hs.v || 0) > 0 || hs.f)) restoreHypnoState(hs.v, hs.f, hs.r, hs.inf);
         } catch (e) {}
         // 資料保險：頁面關閉/重整前，強制送出 BC 帳號更新佇列。
         //  BC 的 ServerAccountUpdate 對 OnlineSharedSettings 等是 debounce ~2 秒且「沒有 unload flush」，
@@ -212,6 +212,7 @@ import { ensureColorAPI } from '../util/icons.js';
         hookDrawCharacter();
         hookGhostDraw();
         hookAtmosphere();      // 催眠模糊/染色（BC 原生繪圖）
+        hookCharAnchor();      // 記錄角色真實繪製座標（含活動位移），供喘氣/符咒等定位
         hookOrgasmStage();
         hookProfileButton();
         hookRemoteEdit();
