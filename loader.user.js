@@ -20,7 +20,7 @@ if (window.Liko.HSC) {
     console.warn('🐈‍⬛ [HSC] ⚠️ 已載入，略過重複匯入。');
 } else {
     // Reserve the flag immediately so a second loader instance bails out here.
-    window.Liko.HSC = 'loading';
+    //window.Liko.HSC = 'loading';
     import(`https://awdrrawd.github.io/BC-HSC/assets/main.js?v=${Date.now()}`)
         .catch(e => console.error('🐈‍⬛ [HSC] 載入失敗:', e));
 }

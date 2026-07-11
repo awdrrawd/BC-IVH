@@ -103,13 +103,8 @@ import { HSC_Z } from '../util/zlayers.js';
                 if (typeof CurrentScreen !== 'undefined' && CurrentScreen === HSC_SCREEN) return true;
                 return next(args);
             });
-            // 優先權拉高（>LSCG 的 11、BCX 的 10）：remote 頁開啟時 return 不呼叫 next，
-            // 讓其它插件的按鈕/子頁完全不繪製，避免蓋在我們的設定頁上。
-            // 三個 hook（Run/Click/Exit）都必須用同一個、且高於所有已知外部 mod 的數字，
-            // 之前 Run 這行寫死成 5（比 LSCG 的 11、BCX 的 10 都低），
-            // 導致 LSCG/BCX 反而先執行、把它們的圖示畫在我們設定頁上面——這裡修正。
-            const SHEET_PRIO = 15;
-            modApi.hookFunction('InformationSheetRun', SHEET_PRIO, (args, next) => {
+
+            modApi.hookFunction('InformationSheetRun', 5, (args, next) => {
                 // remote 設定頁開啟 → 就地接管整個畫面（不繪製 profile 本體、也不跑其它 hook）
                 if (EXT.ctx === 'remote' && EXT.remote) {
                     const prevAlign = MainCanvas.textAlign;
@@ -139,7 +134,7 @@ import { HSC_Z } from '../util/zlayers.js';
                 }
                 return r;
             });
-            modApi.hookFunction('InformationSheetClick', SHEET_PRIO, (args, next) => {
+            modApi.hookFunction('InformationSheetClick', 5, (args, next) => {
                 // remote 設定頁開啟 → 點擊交給 EXT（分頁/離開/存檔）
                 if (EXT.ctx === 'remote' && EXT.remote) { try { EXT.click(); } catch (e) {} return; }
                 if (_otherModSubscreenOpen()) return next(args);   // 讓路給別的插件
@@ -156,7 +151,7 @@ import { HSC_Z } from '../util/zlayers.js';
                 return next(args);
             });
             // 離開 profile（Esc / BC 離開流程）→ 若 remote 設定頁開著，先關掉它、留在 profile
-            modApi.hookFunction('InformationSheetExit', SHEET_PRIO, (args, next) => {
+            modApi.hookFunction('InformationSheetExit', 5, (args, next) => {
                 if (EXT.ctx === 'remote' && EXT.remote) { try { EXT.closeRemote(); } catch (e) {} return; }
                 return next(args);
             });
