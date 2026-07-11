@@ -4,6 +4,7 @@ import { CONFIG, ES_KEY, MOD_VER, makeDefaultConfig, setConfig, setExpressionSet
 import { applyDepthLoop } from '../effects/depth.js';
 import { ui } from '../i18n/i18n.js';
 import { resolveWhitelistNumbers } from '../ui/panel.js';
+import { hscServerSend } from './net.js';
 
 // ════════════════════════════════════════
 //  HSC module: storage.js
@@ -285,9 +286,25 @@ import { resolveWhitelistNumbers } from '../ui/panel.js';
             if (typeof ServerAccountUpdate?.QueueData === 'function') {
                 ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings }, true);
             }
+            // 通知房內正在看我 profile 的人「權限相關設定變了」→ 他們清快取後重查一次（仿 BCX notifyOfChange）。
+            //  極小訊息、去重＋節流佇列；不依賴 BC 是否把 OSS re-sync 到房間，涵蓋 $friend 等不觸發角色同步的變更。
+            _broadcastPermChanged();
         } catch (e) {
             console.warn('🐈‍⬛ [HSC] OnlineSharedSettings 公告失敗:', e.message);
         }
+    }
+
+    // HSC_Changed 廣播：debounce 200ms 吸收「連續多次公告」（開設定頁/存檔會連呼叫），只在房內送。
+    let _permChangedTimer = null;
+    function _broadcastPermChanged() {
+        if (_permChangedTimer) return;
+        _permChangedTimer = setTimeout(() => {
+            _permChangedTimer = null;
+            try {
+                const inRoom = (typeof ServerPlayerIsInChatRoom === 'function') ? ServerPlayerIsInChatRoom() : true;
+                if (inRoom) hscServerSend('HSC_Changed', [{ Tag: 'HSC_Changed' }], { dedupeKey: 'changed', dedupeMs: 500 });
+            } catch (e) {}
+        }, 200);
     }
 
     // ════════════════════════════════════════

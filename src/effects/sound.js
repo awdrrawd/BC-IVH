@@ -1,7 +1,7 @@
 // ── auto-wired cross-module imports ──
 import { printChat } from '../core/commands.js';
 import { CONFIG } from '../core/config.js';
-import { assetUrl } from '../util/icons.js';
+import { soundUrl, fetchAsset } from '../util/icons.js';
 import { EXT } from '../ui/preference.js';
 import { HSCDB, saveSettings } from '../core/storage.js';
 import { T } from '../util/util.js';
@@ -17,9 +17,9 @@ import { T } from '../util/util.js';
     //  載入失敗 → 本地聊天訊息提示（10秒後自動消失）
     //  音源來自 https://www.pincree.jp/
     // ════════════════════════════════════════
-    // 音源自我裝載：與 bundle 同源（正式站 = BC-HSC Pages，本地 = vite preview）。
-    // 檔案放 Sound/，build 前由 copy-assets 複製到 public/Sound/ 一併部署。
-    const SND_BASE = assetUrl('Sound/');
+    // 音源：CDN（jsDelivr）優先、失效回退 Pages（見 fetchAsset）。
+    //  URL 同時當快取鍵並會存進 CONFIG.sounds；音源穩定、不需像翻譯那樣即時更新，適合走 CDN。
+    const SND_BASE = soundUrl('');
 
     // 內建音效庫（唯一一份；「其他」可從這裡挑選，依類別分組）
     const SOUND_PRESETS = [
@@ -68,7 +68,7 @@ import { T } from '../util/util.js';
         list.forEach(url => {
             if (_soundBufferCache.has(url)) return;
             const ctx = _getAudioCtx();
-            fetch(url)
+            fetchAsset(url)
                 .then(r => {
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
                 return r.arrayBuffer();
@@ -107,7 +107,7 @@ import { T } from '../util/util.js';
                     if (rec && rec.bytes) onAB(rec.bytes); else resolve(null);
                 });
             } else {
-                fetch(entry).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+                fetchAsset(entry).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
                     .then(onAB).catch(() => resolve(null));
             }
         });

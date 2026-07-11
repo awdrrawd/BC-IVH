@@ -13,7 +13,7 @@
 // ════════════════════════════════════════
 
 import { CONFIG, ES_KEY } from '../core/config.js';
-import { assetUrl } from '../util/icons.js';
+import { loadHscImage } from '../util/icons.js';
 import { _charAnchor, getBodyAnchorBc } from '../util/geometry.js';
 import { getHypnoValue, isForced, getWakeRemainingMs } from './hypno.js';
 import { ui } from '../i18n/i18n.js';
@@ -38,9 +38,8 @@ function _otherWakeSec(member, r) {
 // ── 素材預載 ──
 // HSC-Hypnosis.png 為 200×75 的 1×2 精靈：左格＝外框（透明底），右格＝填滿的心形遮罩（用來裁水位形狀）。
 let _heartImg = null, _heartReady = false;
-(function () {
-    try { _heartImg = new Image(); _heartImg.onload = () => { _heartReady = true; }; _heartImg.src = assetUrl('HSC-Hypnosis.png'); } catch (e) {}
-})();
+// crossOrigin 乾淨載入（CDN 優先 → Pages 回退）；水位裁形用離屏 canvas，汙染會讓 toDataURL 丟例外。
+try { _heartImg = loadHscImage('HSC-Hypnosis.png', () => { _heartReady = true; }); } catch (e) {}
 // 取精靈單格來源矩形：cell 0 = 外框、cell 1 = 遮罩
 function _cell(i) {
     const cw = (_heartImg.naturalWidth || 200) / 2, chh = _heartImg.naturalHeight || 75;
@@ -58,9 +57,7 @@ function _getOff(w, h) {
 // 符咒精靈圖（與催眠動畫共用同一張 2×6 格）
 const T_COLS = 6, T_ROWS = 2, T_AR = 0.5;   // 符咒單格 寬/高 = 0.5（偏長）
 let _talisImg = null, _talisReady = false;
-(function () {
-    try { _talisImg = new Image(); _talisImg.onload = () => { _talisReady = true; }; _talisImg.src = assetUrl('HSC-Status-Code1.png'); } catch (e) {}
-})();
+try { _talisImg = loadHscImage('HSC-Status-Code1.png', () => { _talisReady = true; }); } catch (e) {}
 
 // 依 顏色×樣式 快取一張染色後的符咒（source-in 平塗，與催眠動畫同做法）
 const _talisCache = new Map();

@@ -55,7 +55,7 @@ import { ui } from '../i18n/i18n.js';
 
             // ── 觸發 ──（觸發對象已取消：任何人說出觸發詞/[Voice] 都會觸發）
             //   whitelist 可含 MemberNumber 或代號 $owner（主人）/$lover（愛人），驗證時即時展開
-            whitelist:      ['$owner'],
+            whitelist:      ['$owner', '$lover', '$white'],
             triggerWords:   [],    // 自訂觸發詞（除了 [Voice]）
             seeOthersPant:  false, // 收到他人催眠廣播時，是否在其角色上顯示喘氣（預設關閉）
             seeOthersHypno: true,  // 在他人角色頭上顯示其催眠進度球（讀 OnlineSharedSettings；預設開啟）

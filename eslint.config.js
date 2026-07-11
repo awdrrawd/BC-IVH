@@ -25,7 +25,8 @@ const bcGlobals = [
   'CharacterAppearanceXOffset', 'CharacterAppearanceYOffset', 'ServerPlayerIsInChatRoom',
   'CanvasUpperOverflow', 'DrawImageEx', 'CurrentTime', 'CommonGetFont', 'CommonTime', 'CurrentModule',
   'CurrentCharacter', 'ChatRoomMapViewIsActive', 'ChatRoomHideIconState', 'CommonPhotoMode',
-  'CommonSetScreen', 'TextLoad',
+  'CommonSetScreen', 'TextLoad', 'DrawCacheImage',
+  'ServerIsLoggedIn', 'ActivityOrgasmStart', 'ActivityOrgasmPrepare',
 ];
 
 export default [

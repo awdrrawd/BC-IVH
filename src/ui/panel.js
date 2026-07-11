@@ -347,25 +347,29 @@ import { T, TOGGLE_LABELS, extractChatText, triggerVoiceEffect } from '../util/u
         // 認「一般聊天」與「悄悄話」兩種（悄悄話也能觸發/喚醒）
         const isChatLike = !!(msgEl.classList?.contains('ChatMessageChat') || msgEl.classList?.contains('ChatMessageWhisper'));
 
+        // 只取「訊息內容」（不含發送者名稱/編號/時間）：觸發詞與清醒詞都比對這個。
+        //  否則 DOM 是「名稱: 內容」，msgEl.textContent 會把名稱也含進去 →
+        //  若觸發詞設成自己名字，自己一說話（XXX: …）就會被名字誤觸發（應只看冒號之後）。
+        const spoken = isChatLike ? (extractChatText(msgEl) || '') : '';
+        const spokenLc = spoken.toLowerCase();   // 觸發詞/清醒詞一律不分大小寫比對
+
         // 清醒詞：房內「他人」在一般聊天/悄悄話說出清醒詞 → 你立即清醒（自己說無效）
         const wws = (CONFIG.wakeWords || []).map(w => String(w).trim().toLowerCase()).filter(Boolean);
         if (wws.length && isChatLike) {
             const sender = getNodeSender(msgEl);
             const isSelf = sender != null && Player && sender === Player.MemberNumber;
             if (!isSelf) {
-                const spokenW = (extractChatText(msgEl) || '').toLowerCase();
-                if (spokenW && wws.some(w => spokenW.includes(w))) wake();
+                if (spokenLc && wws.some(w => spokenLc.includes(w))) wake();
             }
         }
 
-        // ② 自訂觸發詞：一般聊天/悄悄話訊息含觸發詞，且發送者通過白名單
-        const words = (CONFIG.triggerWords || []).filter(w => w && w.trim());
+        // ② 自訂觸發詞：一般聊天/悄悄話「訊息內容」含觸發詞，且發送者通過白名單
+        const words = (CONFIG.triggerWords || []).map(w => String(w).trim().toLowerCase()).filter(Boolean);
         if (words.length === 0) return;
         if (!isChatLike) return;  // 認一般聊天與悄悄話
-        if (!words.some(w => text.includes(w))) return;
+        if (!spokenLc || !words.some(w => spokenLc.includes(w))) return;
         if (!isTriggerAllowed(getNodeSender(msgEl))) return;
 
-        const spoken = extractChatText(msgEl);
         triggerVoiceEffect(spoken || words[0]);
     }
 

@@ -5,11 +5,11 @@
 // ════════════════════════════════════════
 
 import { CONFIG } from '../core/config.js';
-import { assetUrl } from '../util/icons.js';
+import { assetUrl, imageUrl } from '../util/icons.js';
 import { getOverlay } from '../util/util.js';
 import { HSC_Z } from '../util/zlayers.js';
 
-const CROWD_URL = assetUrl('HSC-crowd1.png');
+const CROWD_URL = imageUrl('HSC-crowd1.png');   // CDN 優先（純 DOM 顯示，非畫布，不涉汙染）
 let _crowdEl = null;
 let _crowdVisRAF = null;
 
@@ -49,6 +49,10 @@ function _updateCrowd(show) {
     if (show && CONFIG.crowd) {
         if (_crowdEl) { _placeCrowd(_crowdEl); return; }
         const el = document.createElement('img');
+        el.addEventListener('error', () => {   // CDN 失效 → 回退 Pages（僅一次）
+            const fb = assetUrl('HSC-crowd1.png');
+            if (el.src !== fb) el.src = fb;
+        });
         el.src = CROWD_URL;
         Object.assign(el.style, {
             position: 'fixed',

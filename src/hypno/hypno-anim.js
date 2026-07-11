@@ -22,12 +22,11 @@
 // ════════════════════════════════════════
 
 import { CONFIG } from '../core/config.js';
-import { assetUrl } from '../util/icons.js';
+import { loadHscImage } from '../util/icons.js';
 import { getOverlay } from '../util/util.js';
 import { HSC_Z } from '../util/zlayers.js';
 import { bcToScreen, playerDrawPos, refreshCanvasCache, getPlayerHeadScreenPos, _cachedScaleX } from '../util/geometry.js';
 
-const SPRITE = assetUrl('HSC-Status-Code1.png');
 const COLS = 6, ROWS = 2, CELL_AR = 0.5, BASE_W = 320;
 const CHAR_AR_FALLBACK = 0.5; // 快照失敗時的人物寬高比後備值（500:1000）
 
@@ -42,8 +41,9 @@ export const ANIM = {
     	talisOffsetXPct: -3,
 };
 
+// crossOrigin 乾淨載入（CDN 優先 → Pages 回退）；不然畫到離屏 canvas 後 toDataURL 會因汙染丟例外。
 let _img = null, _imgReady = false;
-(function () { try { _img = new Image(); _img.onload = () => { _imgReady = true; }; _img.src = SPRITE; } catch (e) {} })();
+try { _img = loadHscImage('HSC-Status-Code1.png', () => { _imgReady = true; }); } catch (e) {}
 
 function _cell() {
     const i = Math.min(11, Math.max(0, (CONFIG.hypnoAnimStyle || 1) - 1));

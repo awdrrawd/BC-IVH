@@ -2,7 +2,7 @@
 import { _expandExpr, captureFaceImage, cycleExpression, saveExpression } from '../effects/character-fx.js';
 import { CONFIG, DEFAULT_EXPRESSIONS, HSC_SCREEN, MOD_VER, makeDefaultConfig, setConfig, setExpressionSets } from '../core/config.js';
 import { applyDepthLoop } from '../effects/depth.js';
-import { assetUrl } from '../util/icons.js';
+import { assetUrl, imageUrl } from '../util/icons.js';
 import { updateHeadTalisman } from '../hypno/hypno-anim.js';
 import { disableHypno } from '../hypno/hypno.js';
 import { HSC_LANGS, HSC_LANG_NAMES, ui } from '../i18n/i18n.js';
@@ -364,7 +364,7 @@ import { HSC_Z } from '../util/zlayers.js';
             if (typeof kind === 'string' && kind.indexOf('hypnoStyle') === 0) {
                 const st = Math.min(12, Math.max(1, parseInt(kind.slice(10), 10) || 1));
                 const i = st - 1, col = i % 6, row = Math.floor(i / 6);
-                const spr = assetUrl('HSC-Status-Code1.png');
+                const spr = imageUrl('HSC-Status-Code1.png');   // CDN 優先（CSS mask 預覽）
                 const color = CONFIG.hypnoAnimColor || '#f500b4';
                 const pos = `${(col / 5 * 100).toFixed(2)}% ${row * 100}%`;
                 return `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">
@@ -428,7 +428,7 @@ import { HSC_Z } from '../util/zlayers.js';
                         <span style="position:absolute;left:-5px;top:-3px;right:-5px;bottom:-3px;background:#000;border-radius:3px;animation:hscPinkPulse 1.8s ease-in-out infinite"></span></div>`);
                 case 'crowd':
                     return `<div style="width:100%;height:100%;position:relative;overflow:hidden">
-                        <img src="${assetUrl('HSC-crowd1.png')}" style="position:absolute;left:0;bottom:0;width:100%;max-height:72%;object-fit:cover;object-position:bottom;filter:brightness(0.75) saturate(0.9);animation:hscPinkPulse 3s ease-in-out infinite"/>
+                        <img src="${imageUrl('HSC-crowd1.png')}" onerror="this.onerror=null;this.src='${assetUrl('HSC-crowd1.png')}'" style="position:absolute;left:0;bottom:0;width:100%;max-height:72%;object-fit:cover;object-position:bottom;filter:brightness(0.75) saturate(0.9);animation:hscPinkPulse 3s ease-in-out infinite"/>
                     </div>`;
                 case 'ghost':
                     return W(`<div style="position:relative;width:180px;height:180px">

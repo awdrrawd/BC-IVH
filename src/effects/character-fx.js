@@ -4,6 +4,7 @@ import { _emitBreathPuff, breathIntervalMs } from './breath.js';
 import { BODY_PANT_DY, DEPTH_PANT_EXTRA, HEAD_OFFSET, _cachedRect, _cachedScaleX, _charDrawPos, bcToScreen, getBodyAnchorScreen, otherCharMouthScreenPos, refreshCanvasCache } from '../util/geometry.js';
 import { getOverlay } from '../util/util.js';
 import { HSC_Z } from '../util/zlayers.js';
+import { hscServerSend } from '../core/net.js';
 
 // ════════════════════════════════════════
 //  HSC module: character-fx.js
@@ -252,14 +253,9 @@ function addArousal(kind) {
         const now = Date.now();
         if (now - _lastHypnoBroadcast < 5000) return;   // 節流，避免洗版伺服器
         _lastHypnoBroadcast = now;
-        try {
-            if (typeof ServerSend === 'function')
-                ServerSend('ChatRoomChat', {
-                    Type: 'Hidden', Content: 'HSC_Hypnotized',
-                    // Intensity = 催眠等級，決定對方看到的喘氣強度（頻率／大小）
-                    Dictionary: [{ Tag: 'HSC_Hypnotized', Duration: 7000, Intensity: CONFIG.intensity }],
-                });
-        } catch (e) {}
+        // Intensity = 催眠等級，決定對方看到的喘氣強度（頻率／大小）
+        hscServerSend('HSC_Hypnotized', [{ Tag: 'HSC_Hypnotized', Duration: 7000, Intensity: CONFIG.intensity }],
+            { dedupeKey: 'hypno', dedupeMs: 4000 });
     }
 
     // 收到他人催眠廣播 → 在其角色嘴部顯示喘氣（需開啟 seeOthersPant，且對方在目前畫面）

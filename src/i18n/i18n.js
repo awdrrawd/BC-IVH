@@ -1,6 +1,6 @@
 // ── auto-wired cross-module imports ──
 import { CONFIG } from '../core/config.js';
-import { assetUrl } from '../util/icons.js';
+import { assetUrl, cdnUrl } from '../util/icons.js';
 
 // ════════════════════════════════════════
 //  HSC module: i18n.js
@@ -12,24 +12,28 @@ import { assetUrl } from '../util/icons.js';
     //  引擎未就緒時，ui() 回傳 fallbacks[key]（中文原文），不丟例外
     // ════════════════════════════════════════
     const I18N_NS = 'HSC';
-    // 翻譯自我裝載：與 bundle 同源（正式站 = BC-HSC Pages，本地 = vite preview）。
-    //  BC_i18n.js 是共用引擎（有防重複載入），HSC-i18n.js 是本插件字庫；
-    //  兩者放 Translation/，build 前由 copy-assets 複製到 public/Translation/ 一併部署。
-    const LIKO_I18N_ENGINE_URL = assetUrl('Translation/BC_i18n.js');
-    const LIKO_HSC_STRINGS_URL = assetUrl('Translation/HSC-i18n.js');
-    const LIKO_HSC_L10N_URL    = assetUrl('Translation/HSC-l10n.js');
+    // 翻譯：Pages 優先。翻譯字庫更新頻繁，而 jsDelivr @main 邊緣快取約 12h，CDN 會餵到舊字庫，
+    //  故字庫（STRINGS/L10N）一律走 Pages（?t= 時間戳破快取）；CDN 僅在 Pages 掛掉時當引擎腳本的保底。
+    //  檔案放 Translation/，build 前由 copy-assets 複製到 public/Translation/ 一併部署。
+    const T_ENGINE  = 'Translation/BC_i18n.js';
+    const T_STRINGS = 'Translation/HSC-i18n.js';
+    const T_L10N    = 'Translation/HSC-l10n.js';
+    const LIKO_HSC_STRINGS_URL = assetUrl(T_STRINGS);   // 交給引擎 ensure() 抓（Pages）
+    const LIKO_HSC_L10N_URL    = assetUrl(T_L10N);
 
-    // 加時間戳避免 CDN 快取到舊字庫（翻譯會經常修改）
-    function _i18nLoadScript(url) {
-        const u = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
-        return fetch(u)
-            .then(res => { if (!res.ok) throw new Error(`[HSC] 無法載入 ${url} (${res.status})`); return res.text(); })
+    // 載入共用引擎腳本：Pages 優先、加時間戳破快取；Pages 失敗才回退 CDN（可能較舊但能用）。
+    function _i18nLoadScript(logical) {
+        const bust = u => u + (u.includes('?') ? '&' : '?') + 't=' + Date.now();
+        return fetch(bust(assetUrl(logical)))
+            .then(res => res.ok ? res.text() : Promise.reject(new Error(String(res.status))))
+            .catch(() => fetch(bust(cdnUrl(logical)))
+                .then(res => { if (!res.ok) throw new Error(`[HSC] 無法載入 ${logical} (${res.status})`); return res.text(); }))
             .then(code => { new Function(code)(); });
     }
     async function ensureI18n() {
         try {
             // 能力偵測：新引擎 BC_i18n 暴露 __Sys_i18n__.ensure；舊 v1 只有 version 會被誤判，故用 ensure
-            if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function') await _i18nLoadScript(LIKO_I18N_ENGINE_URL);
+            if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function') await _i18nLoadScript(T_ENGINE);
             const eng = window.Liko?.__Sys_i18n__;
             if (eng?.ensure) {
                 await eng.ensure(I18N_NS, LIKO_HSC_STRINGS_URL);                     // UI 字庫（依 URL 去重）
@@ -209,7 +213,6 @@ import { assetUrl } from '../util/icons.js';
 
 export {
     I18N_NS,
-    LIKO_I18N_ENGINE_URL,
     LIKO_HSC_STRINGS_URL,
     _i18nLoadScript,
     ensureI18n,

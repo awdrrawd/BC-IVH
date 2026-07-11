@@ -8,6 +8,7 @@ import { _mkBtn, resolveWhitelistNumbers } from './panel.js';
 import { EXT, waitForPreference } from './preference.js';
 import { interfereEnterLeave } from '../effects/state-fx.js';
 import { publishSharedSettings, saveSettings } from '../core/storage.js';
+import { hscServerSend } from '../core/net.js';
 import { isZh } from '../util/util.js';
 import { HSC_Z } from '../util/zlayers.js';
 
@@ -43,21 +44,31 @@ import { HSC_Z } from '../util/zlayers.js';
         return ['catalyst', 'status', 'trigger', 'wake', 'response', 'allowed'].some(k => _viewerCanEdit(info, modes[k]));
     }
 
-    // ── 即時權限詢問：開對方 profile 時直接問對方「我能編輯哪些」，對方即時回覆 ──
-    //   避免靠公告快照（會有同步延遲／需重開設定才更新的問題）；回覆只告訴詢問者本人，不公開白名單
-    const _permCache = {};      // { memberNum: { can:{catalyst,status,trigger}, texts, emotes, triggers, ts } }
-    const _permQueryTs = {};
-    let   _permViewing = null;     // 目前正在看的對象 → 換人時強制即時重查（避免拿到舊快取）
-    let   _permSheetLastFrame = 0; // 上次 InformationSheet 繪製時間 → 偵測「離開後重開」也強制重查
-    function _queryPerm(num, force) {
+    // ── 權限詢問：開對方 profile 時問一次「我能編輯哪些」，對方即時回覆（只回給詢問者本人，不公開白名單）──
+    //   不再每幀/每 1.5 秒輪詢（那會全房廣播、洗版伺服器 → 連線不穩）：
+    //     • 有效快取（PERM_TTL 內）→ 完全不送
+    //     • 沒有有效快取才送，且送出後 PERM_RETRY 內不重送（等回覆；對方沒裝 HSC/沒回也不會狂送）
+    //   失效改由推播驅動：對方 editModes/白名單變更會發 HSC_Changed；owner/lover 等 BC 關係
+    //   變更會讓對方角色 re-sync（ChatRoomSyncSingle/Character）——兩者都會清掉這裡的快取後重查一次。
+    const _permCache = {};      // { memberNum: { can:{...}, texts, emotes, triggers, wake, response, allowed, ts } }
+    const _permQueryTs = {};    // { memberNum: 上次送出查詢的時間 }
+    let   _permViewing = null;   // 目前正在看的對象（僅用於偵測換人）
+    const PERM_TTL   = 60000;    // 快取有效期
+    const PERM_RETRY = 8000;     // 無有效快取時的重送間隔（對方沒回時的保底重試）
+    function _invalidatePerm(num) {
+        if (num == null) return;
+        delete _permCache[Number(num)];
+        delete _permQueryTs[Number(num)];
+    }
+    function _ensurePerm(num) {
+        const n = Number(num);
         const now = Date.now();
-        if (!force && _permQueryTs[num] && now - _permQueryTs[num] < 1500) return;   // 停留時節流
-        _permQueryTs[num] = now;
-        try {
-            if (typeof ServerSend === 'function')
-                ServerSend('ChatRoomChat', { Type: 'Hidden', Content: 'HSC_PermQuery',
-                    Dictionary: [{ Tag: 'HSC_PermQuery', Target: Number(num) }] });
-        } catch (e) {}
+        const pc = _permCache[n];
+        if (pc && now - pc.ts < PERM_TTL) return;                          // 有效快取 → 不查
+        if (_permQueryTs[n] && now - _permQueryTs[n] < PERM_RETRY) return; // 查詢在途 → 不重送
+        _permQueryTs[n] = now;
+        // 不加 dedupeKey：查詢的節流已由上面的快取/重送邏輯負責；再套佇列去重會在「失效後想立刻重查」時互相打架。
+        hscServerSend('HSC_PermQuery', [{ Tag: 'HSC_PermQuery', Target: n }]);
     }
     // 我對 C 各類是否可編輯：優先用對方即時回覆，60 秒內有效；否則退回公告快照
     function _permFor(C, info) {
@@ -117,13 +128,10 @@ import { HSC_Z } from '../util/zlayers.js';
                 const C = _sheetChar();
                 const info = C && _isOther(C) && C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY];
                 if (info && CONFIG.showProfileButton) {
-                    // 換看不同人、或離開後重開 profile → 立刻強制重查（解決剛被加白名單卻仍顯示無權限的延遲）
-                    const now = Date.now();
-                    const reopened = (now - _permSheetLastFrame) > 500;   // 上一幀沒在畫 → 重新開啟
-                    _permSheetLastFrame = now;
-                    const fresh = reopened || C.MemberNumber !== _permViewing;
-                    if (fresh) _permViewing = C.MemberNumber;
-                    _queryPerm(C.MemberNumber, fresh);
+                    // 只在「沒有效快取」時查一次（見 _ensurePerm）；換人只記錄，不強制重送。
+                    // 「剛被加白名單卻仍顯示無權限」改由推播解決：對方發 HSC_Changed / 角色 re-sync → 清快取重查。
+                    if (C.MemberNumber !== _permViewing) _permViewing = C.MemberNumber;
+                    _ensurePerm(C.MemberNumber);
                     const can = _permFor(C, info), canEdit = can.catalyst || can.status || can.trigger || can.wake || can.response || can.allowed;
                     const tip = canEdit ? ui('profileEditBtn')
                         : (info.edit ? ui('profileEditNoPerm') : ui('profileEditOff'));
@@ -168,6 +176,11 @@ import { HSC_Z } from '../util/zlayers.js';
                 const data = args[0];
                 // 信息干擾（強控中）：把人員進/出訊息改寫成模糊幻覺敘述，攔截原訊息
                 try { if (interfereEnterLeave(data)) return; } catch (e) {}
+                // 對方通知「其權限相關設定（editModes/白名單）變了」→ 清掉對他的快取，下次看其 profile 重查一次
+                if (data && data.Type === 'Hidden' && data.Content === 'HSC_Changed') {
+                    _invalidatePerm(Number(data.Sender));
+                    return;  // 不顯示
+                }
                 // 有人問「我能否編輯你的內容」→ 即時依目前白名單回覆（只回給詢問者本人）
                 if (data && data.Type === 'Hidden' && data.Content === 'HSC_PermQuery') {
                     try {
@@ -177,16 +190,15 @@ import { HSC_Z } from '../util/zlayers.js';
                             const wl = resolveWhitelistNumbers();
                             const can = m => m === 'any' || (m === 'whitelist' && wl.has(sender));
                             const cc = can(em.catalyst), cs = can(em.status), ct = can(em.trigger), cw = can(em.wake), cr = can(em.response), ca = can(em.allowed);
-                            if (typeof ServerSend === 'function')
-                                ServerSend('ChatRoomChat', { Type: 'Hidden', Content: 'HSC_PermReply', Dictionary: [{
-                                    Tag: 'HSC_PermReply', Target: sender, cc, cs, ct, cw, cr, ca,
-                                    texts:    cc ? (CONFIG.customTexts || [])  : [],
-                                    emotes:   cs ? (CONFIG.emoteList || [])    : [],
-                                    triggers: ct ? (CONFIG.triggerWords || []) : [],
-                                    wake:     cw ? (CONFIG.wakeWords || [])    : [],
-                                    response: cr ? (CONFIG.responseList || []) : [],
-                                    allowed:  ca ? (CONFIG.allowedPhrases || []) : [],
-                                }] });
+                            hscServerSend('HSC_PermReply', [{
+                                Tag: 'HSC_PermReply', Target: sender, cc, cs, ct, cw, cr, ca,
+                                texts:    cc ? (CONFIG.customTexts || [])  : [],
+                                emotes:   cs ? (CONFIG.emoteList || [])    : [],
+                                triggers: ct ? (CONFIG.triggerWords || []) : [],
+                                wake:     cw ? (CONFIG.wakeWords || [])    : [],
+                                response: cr ? (CONFIG.responseList || []) : [],
+                                allowed:  ca ? (CONFIG.allowedPhrases || []) : [],
+                            }], { priority: true, dedupeKey: 'permr:' + sender, dedupeMs: 500 });
                         }
                     } catch (e) {}
                     return;  // 不顯示
@@ -261,13 +273,9 @@ import { HSC_Z } from '../util/zlayers.js';
                                 printChat(ui('editedYourText', { who }), 8000);
                             }
                             // 回報結果給編輯者（成功 / 被拒），讓對方知道是否真的儲存
-                            try {
-                                if (typeof ServerSend === 'function')
-                                    ServerSend('ChatRoomChat', {
-                                        Type: 'Hidden', Content: 'HSC_SetTextsAck',
-                                        Dictionary: [{ Tag: 'HSC_SetTextsAck', Target: Number(data.Sender), Ok: changed, Tried: tried }],
-                                    });
-                            } catch {}
+                            hscServerSend('HSC_SetTextsAck',
+                                [{ Tag: 'HSC_SetTextsAck', Target: Number(data.Sender), Ok: changed, Tried: tried }],
+                                { priority: true });
                         }
                     } catch (e) {}
                     return;  // 不顯示此隱藏訊息
@@ -287,6 +295,16 @@ import { HSC_Z } from '../util/zlayers.js';
                 }
                 return next(args);
             });
+
+            // BC 關係/資料變更（被別人上/解項圈、改愛人、對方重新公告 OnlineSharedSettings…）
+            //  會讓該角色 re-sync → 清掉我方對他的權限快取，避免顯示過期的可編輯狀態；
+            //  下次看其 profile 時 _ensurePerm 會重查一次。只對「已快取者」動作，成本極低。
+            const _invalidateOnSync = (args, next) => {
+                try { const m = args?.[0]?.Character?.MemberNumber; if (m != null && _permCache[Number(m)]) _invalidatePerm(Number(m)); } catch (e) {}
+                return next(args);
+            };
+            modApi.hookFunction('ChatRoomSyncSingle', 1, _invalidateOnSync);
+            modApi.hookFunction('ChatRoomSyncCharacter', 1, _invalidateOnSync);
         } catch (e) {
             console.warn('🐈‍⬛ [HSC] 遠端編輯 hook 失敗:', e.message);
         }
@@ -301,9 +319,8 @@ import { HSC_Z } from '../util/zlayers.js';
             if (num != null && (!_accessNotifyTs[num] || now - _accessNotifyTs[num] > 15000)) {
                 _accessNotifyTs[num] = now;
                 const myName = (typeof CharacterNickname === 'function' ? CharacterNickname(Player) : '') || Player?.Name || Player?.MemberNumber;
-                if (typeof ServerSend === 'function')
-                    ServerSend('ChatRoomChat', { Type: 'Hidden', Content: 'HSC_Access',
-                        Dictionary: [{ Tag: 'HSC_Access', Target: Number(num), Name: String(myName) }] });
+                hscServerSend('HSC_Access', [{ Tag: 'HSC_Access', Target: Number(num), Name: String(myName) }],
+                    { dedupeKey: 'access:' + num, dedupeMs: 15000 });
             }
         } catch (e) {}
         const info  = (C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY]) || {};
@@ -342,10 +359,8 @@ import { HSC_Z } from '../util/zlayers.js';
                     if (!c.editable) return;   // 無權限類別不送
                     dict[c.dictKey] = (c.data || []).map(s => String(s).trim()).filter(Boolean).slice(0, 200);
                 });
-                try {
-                    ServerSend('ChatRoomChat', { Type: 'Hidden', Content: 'HSC_SetTexts', Dictionary: [dict] });
-                    printChat(ui('remoteEditSent', { name }), 6000);
-                } catch (e) {}
+                hscServerSend('HSC_SetTexts', [dict]);
+                printChat(ui('remoteEditSent', { name }), 6000);
             },
         });
     }
@@ -407,7 +422,7 @@ export {
     _viewerCanEdit,
     _viewerEditModes,
     _viewerCanEditAny,
-    _queryPerm,
+    _ensurePerm,
     _permFor,
     hookProfileButton,
     hookRemoteEdit,
