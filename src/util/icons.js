@@ -175,8 +175,9 @@ export function ensureColorAPI() {
 }
 
 // ── 判定「當前 UI 主題色」是否過深 ──
-// 交給共用 ColorAPI（BC_ThemeColorCheck）判斷實際畫布背景色；ColorAPI 未就緒時才退回
-// 內建邏輯（讀主題插件 CSS 變數 → 取樣畫布上方選單帶）。都失敗則預設亮底。
+// 優先問 LCE（Liko.LCE.getMainColor() 直接回主題色碼，如 '#202020'）；沒有 LCE 才交給共用
+// ColorAPI（BC_ThemeColorCheck）判斷實際畫布背景色；兩者都不在時退回內建邏輯
+// （讀主題插件 CSS 變數 → 取樣畫布上方選單帶）。都失敗則預設亮底。
 //
 // 結果快取 60 秒：profile 按鈕每幀都會呼叫本函式；主題正常不會一直變，沒必要每幀重算。
 //  快取後對畫布的取樣頻率極低（~1 次/分），效能與 console 都清爽。
@@ -191,15 +192,26 @@ export function hscThemeIsDark() {
     return val;
 }
 function _computeThemeIsDark() {
-    // 1) 優先由 BC_ThemeColorCheck 判斷（讀畫布上方選單帶實際顏色 → isDark）
     const ColorAPI = (typeof window !== 'undefined') ? window.Liko?.__Sys_ColorAPI__ : null;
+    // 1) 優先由 LCE 取主題色（回傳色碼，如 '#202020'）
+    try {
+        const getMainColor = (typeof window !== 'undefined') ? window.Liko?.LCE?.getMainColor : null;
+        if (typeof getMainColor === 'function') {
+            const color = getMainColor.call(window.Liko.LCE);
+            if (color) {
+                const d = ColorAPI ? ColorAPI.isDark(color) : !isLightColor(color);
+                if (d !== null) return d;
+            }
+        }
+    } catch { /* 落到下方 fallback */ }
+    // 2) fallback：BC_ThemeColorCheck（讀畫布上方選單帶實際顏色 → isDark）
     if (ColorAPI) {
         try {
             const color = ColorAPI.getCanvasColor({ x: 1000, y: 110, size: 8 });
             if (color) { const d = ColorAPI.isDark(color); if (d !== null) return d; }
         } catch { /* 落到下方 fallback */ }
     }
-    // 2) fallback：主題插件 CSS 變數
+    // 3) fallback：主題插件 CSS 變數
     try {
         const cs = getComputedStyle(document.documentElement);
         for (const v of ['--tmd-element', '--tmd-elementHover', '--element', '--button-color', '--bce-color']) {
@@ -207,7 +219,7 @@ function _computeThemeIsDark() {
             if (c) return !isLightColor(c);
         }
     } catch { /* 無法讀 CSS 變數 */ }
-    // 3) fallback：自行取樣畫布上方中央選單帶
+    // 4) fallback：自行取樣畫布上方中央選單帶
     try { return sampleCanvasIsDark(760, 60, 480, 120); } catch { return false; }
 }
 
