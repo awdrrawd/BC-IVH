@@ -127,7 +127,7 @@ import { hscServerSend } from './net.js';
     }
     function loadSounds() {
         try {
-            const raw = localStorage.getItem(SND_LS_KEY);   // 舊 IVH_sounds 已由 migrateFromIVH() 搬移
+            const raw = localStorage.getItem(SND_LS_KEY);
             if (raw) {
                 const s = JSON.parse(raw);
                 CONFIG.sounds = mergeDefaults(makeDefaultConfig().sounds, s);
@@ -151,51 +151,7 @@ import { hscServerSend } from './net.js';
         });
     }
 
-    // ★ 一次性改名遷移（BC-IVH → BC-HSC）：把舊 IVH 設定搬到 HSC，然後清掉舊鍵，
-    //   玩家不需手動備份。搬完後舊帳號同步鍵設空字串再同步（BC 的 sync 不接受 undefined），
-    //   本地物件則直接刪除。localStorage 音效設定同樣搬移。
-    function migrateFromIVH() {
-        // ExtensionSettings：只要舊鍵還在就處理 —— HSC 尚未存在才搬資料，但無論如何都清掉 IVH。
-        //  （BC 無法真正刪除 ExtensionSettings 鍵，設空字串 + sync 即為官方認可的「清除」。）
-        try {
-            const es = Player && Player.ExtensionSettings;
-            if (es && ('IVH' in es)) {                     // 只要舊鍵還在（含殘留的空字串）就處理
-                const hasData = es.IVH != null && es.IVH !== '';
-                const migrated = hasData && !es[ES_KEY];
-                if (migrated) {                            // HSC 尚無資料且舊鍵有資料 → 搬過去
-                    es[ES_KEY] = es.IVH;
-                    try { if (typeof ServerPlayerExtensionSettingsSync === 'function') ServerPlayerExtensionSettingsSync(ES_KEY); } catch (e) {}
-                }
-                es.IVH = '';                               // 先清空舊鍵資料（不能用 undefined，否則 sync 會丟例外）
-                try { if (typeof ServerPlayerExtensionSettingsSync === 'function') ServerPlayerExtensionSettingsSync('IVH'); } catch (e) {}
-                delete es.IVH;                             // 本地物件移除該鍵
-                // 送出整包 ExtensionSettings（已不含 IVH）→ 若伺服器端為整包覆寫則可真正刪除該鍵
-                try { if (typeof ServerAccountUpdate?.QueueData === 'function') ServerAccountUpdate.QueueData({ ExtensionSettings: es }, true); } catch (e) {}
-                console.log(`🐈‍⬛ [HSC] 已移除舊 IVH ExtensionSettings 鍵${migrated ? '（並將資料遷移到 HSC）' : ''}`);
-            }
-        } catch (e) {}
-        // OnlineSharedSettings：清掉舊的對外公告鍵，避免他人仍看到你「裝著 IVH」。
-        try {
-            const oss = Player && Player.OnlineSharedSettings;
-            if (oss && oss.IVH !== undefined) {
-                delete oss.IVH;
-                if (typeof ServerAccountUpdate?.QueueData === 'function') {
-                    ServerAccountUpdate.QueueData({ OnlineSharedSettings: oss }, true);
-                }
-            }
-        } catch (e) {}
-        // localStorage：舊音效設定 —— HSC 還沒有才搬，之後一律移除舊鍵。
-        try {
-            const oldSnd = localStorage.getItem('IVH_sounds');
-            if (oldSnd) {
-                if (!localStorage.getItem(SND_LS_KEY)) localStorage.setItem(SND_LS_KEY, oldSnd);
-                localStorage.removeItem('IVH_sounds');
-            }
-        } catch (e) {}
-    }
-
     function loadSettings() {
-        migrateFromIVH();   // 先把舊 IVH 資料搬到 HSC（並清除舊鍵）
         // 時間戳比對：帳號(ExtensionSettings) vs 本機備份，取「較新」的那份。
         //  正常兩者 ts 相同（同一次存檔同時寫入）。若帳號被清空/落後（ts 較小或為 0）而備份較新 →
         //  代表帳號資料遺失，改用備份並補回帳號。

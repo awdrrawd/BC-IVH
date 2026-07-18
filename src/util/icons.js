@@ -175,23 +175,38 @@ export function ensureColorAPI() {
 }
 
 // ── 判定「當前 UI 主題色」是否過深 ──
-// 交給共用 ColorAPI（BC_ThemeColorCheck）判斷實際畫布背景色；ColorAPI 未就緒時才退回
-// 內建邏輯（讀主題插件 CSS 變數 → 取樣畫布上方選單帶）。都失敗則預設亮底。
+// 判定順序：LCE 主題 API → sys color（共用 __Sys_ColorAPI__）→ 自己的（CSS 變數 / 取樣畫布）。
+//  0) 最優先讀 LCE（window.Liko.LCE.Theme）：isDark 布林直接用，否則讀 Main 色碼反推；
+//     LCE 沒安裝或停用主題（無值 / null）就往下退。
+//  1) sys color：共用 ColorAPI（BC_ThemeColorCheck）讀實際畫布背景色。
+//  2~3) 未就緒才退回內建（讀主題插件 CSS 變數 → 取樣畫布上方選單帶）。都失敗則預設亮底。
 //
-// 結果快取 60 秒：profile 按鈕每幀都會呼叫本函式；主題正常不會一直變，沒必要每幀重算。
-//  快取後對畫布的取樣頻率極低（~1 次/分），效能與 console 都清爽。
-//  代價：切換主題後圖示明暗最多 60 秒才更新（可接受；要更即時就把 THEME_TTL 調小）。
-const THEME_TTL = 60000;
-let _themeDarkCache = { val: false, ts: 0 };
+// 不用時間快取：主題不會自己一直變，沒必要每幀或定時重算。
+//  進入資訊頁（profile）時由 refreshThemeIsDark() 重算一次，之後每幀重用同一份結果；
+//  就算這次沒跟上（例如剛切主題），下次再進 profile 就會更新——換取最省的取樣/運算。
+let _themeDark = null;   // null = 尚未計算
+// 重算並快取當前主題深淺（進入畫面時呼叫一次）。
+export function refreshThemeIsDark() {
+    _themeDark = _computeThemeIsDark();
+    return _themeDark;
+}
+// 取快取值；從未算過則即時算一次（給早於 refresh 的呼叫方，如偏好頁註冊鈕）。
 export function hscThemeIsDark() {
-    const now = Date.now();
-    if (_themeDarkCache.ts && now - _themeDarkCache.ts < THEME_TTL) return _themeDarkCache.val;
-    const val = _computeThemeIsDark();
-    _themeDarkCache = { val, ts: now };
-    return val;
+    return _themeDark === null ? refreshThemeIsDark() : _themeDark;
 }
 function _computeThemeIsDark() {
-    // 1) 優先由 BC_ThemeColorCheck 判斷（讀畫布上方選單帶實際顏色 → isDark）
+    // 0) 最優先：LCE 主題 API（window.Liko.LCE.Theme）
+    //    isDark 為布林 → 直接採用；否則讀 Main 色碼反推亮暗。
+    //    LCE 沒安裝（Liko.LCE 無值）或停用主題（Theme / isDark / Main 為 null）→ 落到下方 sys color。
+    try {
+        const theme = (typeof window !== 'undefined') ? window.Liko?.LCE?.Theme : null;
+        if (theme) {
+            if (typeof theme.isDark === 'boolean') return theme.isDark;
+            const main = theme.Main;
+            if (typeof main === 'string' && main.trim()) return !isLightColor(main);
+        }
+    } catch { /* 落到下方 sys color */ }
+    // 1) sys color：共用 __Sys_ColorAPI__（BC_ThemeColorCheck，讀畫布上方選單帶實際顏色 → isDark）
     const ColorAPI = (typeof window !== 'undefined') ? window.Liko?.__Sys_ColorAPI__ : null;
     if (ColorAPI) {
         try {
@@ -199,7 +214,7 @@ function _computeThemeIsDark() {
             if (color) { const d = ColorAPI.isDark(color); if (d !== null) return d; }
         } catch { /* 落到下方 fallback */ }
     }
-    // 2) fallback：主題插件 CSS 變數
+    // 2) fallback（自己的）：主題插件 CSS 變數
     try {
         const cs = getComputedStyle(document.documentElement);
         for (const v of ['--tmd-element', '--tmd-elementHover', '--element', '--button-color', '--bce-color']) {
@@ -207,7 +222,7 @@ function _computeThemeIsDark() {
             if (c) return !isLightColor(c);
         }
     } catch { /* 無法讀 CSS 變數 */ }
-    // 3) fallback：自行取樣畫布上方中央選單帶
+    // 3) fallback（自己的）：自行取樣畫布上方中央選單帶
     try { return sampleCanvasIsDark(760, 60, 480, 120); } catch { return false; }
 }
 

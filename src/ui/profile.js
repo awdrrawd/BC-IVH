@@ -3,7 +3,7 @@ import { startOtherPant } from '../effects/character-fx.js';
 import { printChat } from '../core/commands.js';
 import { CONFIG, ES_KEY, HSC_SCREEN, PREF_ID, modApi } from '../core/config.js';
 import { ui } from '../i18n/i18n.js';
-import { HSC_ICON_B, HSC_ICON_W, hscIconForTheme, hscThemeIsDark } from '../util/icons.js';
+import { HSC_ICON_B, HSC_ICON_W, hscIconForTheme, hscThemeIsDark, refreshThemeIsDark } from '../util/icons.js';
 import { _mkBtn, resolveWhitelistNumbers } from './panel.js';
 import { EXT, waitForPreference } from './preference.js';
 import { interfereEnterLeave } from '../effects/state-fx.js';
@@ -157,6 +157,12 @@ import { HSC_Z } from '../util/zlayers.js';
                     return;   // 吃掉此點擊，避免落到 UBC 的同位置按鈕
                 }
                 return next(args);
+            });
+            // 進入資訊頁時重算一次主題深淺（之後每幀由 InformationSheetRun 重用同一份結果，不再每幀取樣）
+            modApi.hookFunction('InformationSheetLoad', 5, (args, next) => {
+                const r = next(args);
+                try { refreshThemeIsDark(); } catch (e) {}
+                return r;
             });
             // 離開 profile（Esc / BC 離開流程）→ 若 remote 設定頁開著，先關掉它、留在 profile
             modApi.hookFunction('InformationSheetExit', 5, (args, next) => {
