@@ -137,8 +137,8 @@ import { HSC_Z } from '../util/zlayers.js';
                         : (info.edit ? ui('profileEditNoPerm') : ui('profileEditOff'));
                     // 依當前 UI 主題深淺自動切換：暗底用深色鈕+白線稿(B)，亮底用白鈕+深線稿(W)
                     const darkBg = hscThemeIsDark();
-                    DrawButton(1700, 75, 90, 90, '', "White", '', tip, !canEdit);
-                    DrawImageResize(darkBg ? HSC_ICON_B : HSC_ICON_W, 1702, 77, 86, 86);
+                    DrawButton(1715, 75, 90, 90, '', "White", '', tip, !canEdit);
+                    DrawImageResize(darkBg ? HSC_ICON_B : HSC_ICON_W, 1717, 77, 86, 86);
                 }
                 return r;
             });
@@ -148,7 +148,7 @@ import { HSC_Z } from '../util/zlayers.js';
                 if (_otherModSubscreenOpen()) return next(args);   // 讓路給別的插件
                 const C = _sheetChar();
                 const info = C && _isOther(C) && C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY];
-                if (info && CONFIG.showProfileButton && MouseIn(1700, 75, 90, 90)) {
+                if (info && CONFIG.showProfileButton && MouseIn(1715, 75, 90, 90)) {
                     const can = _permFor(C, info);
                     if (can.catalyst || can.status || can.trigger || can.wake || can.response || can.allowed) {
                         try { if (typeof InformationSheetUnload === 'function') InformationSheetUnload(); } catch (e) {}  // 清掉 profile 的 DOM 元素

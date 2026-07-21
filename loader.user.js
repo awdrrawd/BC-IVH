@@ -2,7 +2,7 @@
 // @name         HSC - Hypnotic Slave Club
 // @name:zh      沉浸式聲音催眠效果
 // @namespace    https://likulisu.dev/
-// @version      1.0.1
+// @version      1.0.2
 // @description  收到 [Voice] 訊息時觸發深度催眠視覺效果，支援 /hsc 指令
 // @author       莉柯莉絲(Likolisu)
 // @supportURL   https://github.com/awdrrawd/BC-HSC
